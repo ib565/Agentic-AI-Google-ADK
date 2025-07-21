@@ -2,7 +2,7 @@ import os
 import asyncio
 import io
 from time import perf_counter
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Literal
 from pydantic import BaseModel
 from weasyprint import HTML
@@ -199,7 +199,7 @@ def html2pdf(html_content: str) -> io.BytesIO:
 
     doc = HTML(string=html_content).render(font_config=font_config)
     doc.metadata.authors = ["Worksheet Generator"]
-    doc.metadata.created = datetime.now(datetime.UTC).isoformat()
+    doc.metadata.created = datetime.now(timezone.utc).isoformat()
     doc.metadata.title = "Worksheet"
 
     doc.write_pdf(bytes_io)
