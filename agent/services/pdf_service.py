@@ -113,6 +113,41 @@ def create_html_from_worksheet(worksheet: WorksheetOutput) -> str:
 
     html_content += """
         </div>
+        
+        <div class="section" style="page-break-before: always; margin-top: 50px;">
+            <h2 class="section-title">Answer Key</h2>
+            
+            <div style="margin: 20px 0;">
+                <h3 style="color: #2c3e50; margin-bottom: 10px;">Part A: Fill in the Blanks</h3>"""
+
+    # Add fill-in-the-blank answers
+    for i, question in enumerate(worksheet.fill_in_blanks, 1):
+        html_content += f"""
+                <div style="margin: 8px 0;">
+                    <span class="question-number">{i}.</span> {question.answer}
+                </div>"""
+
+    html_content += """
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <h3 style="color: #2c3e50; margin-bottom: 10px;">Part B: Short Answer Questions</h3>"""
+
+    # Add short answer expected answers
+    for i, question in enumerate(worksheet.short_answers, 1):
+        html_content += f"""
+                <div style="margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">
+                        <span class="question-number">{i}.</span> {question.question}
+                    </div>
+                    <div style="color: #2c3e50; font-style: italic;">
+                        Expected Answer: {question.expected_answer}
+                    </div>
+                </div>"""
+
+    html_content += """
+            </div>
+        </div>
     </body>
 </html>"""
 
