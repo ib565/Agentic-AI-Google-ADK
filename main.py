@@ -1,10 +1,17 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import Response
 import asyncio
+import logging
 from typing import Optional
 
 from agent.services.worksheet_service import generate_worksheet_from_image
 from agent.services.pdf_service import worksheet_to_pdf_bytes
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Worksheet Generator API",
@@ -33,15 +40,23 @@ async def generate_worksheet_from_image_endpoint(
     Returns: PDF file with the generated worksheet
     """
     try:
+        logger.info(f"Received request to generate worksheet for grade {grade}")
+
         # Validate file type
         if not image.content_type or not image.content_type.startswith("image/"):
+            logger.warning(f"Invalid file type: {image.content_type}")
             raise HTTPException(status_code=400, detail="File must be an image")
 
         # Read image bytes
         image_bytes = await image.read()
 
         if len(image_bytes) == 0:
+            logger.warning("Empty image file received")
             raise HTTPException(status_code=400, detail="Empty image file")
+
+        logger.info(
+            f"Processing image: {image.filename}, size: {len(image_bytes)} bytes"
+        )
 
         # Generate worksheet using the service
         worksheet = await generate_worksheet_from_image(
@@ -50,6 +65,8 @@ async def generate_worksheet_from_image_endpoint(
 
         # Convert to PDF
         pdf_bytes = worksheet_to_pdf_bytes(worksheet)
+
+        logger.info(f"Successfully generated worksheet PDF for grade {grade}")
 
         # Return PDF as response
         return Response(
@@ -60,8 +77,10 @@ async def generate_worksheet_from_image_endpoint(
             },
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in generate_worksheet_from_image_endpoint: {e}")
+        logger.error(f"Error generating worksheet: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to generate worksheet: {str(e)}"
         )

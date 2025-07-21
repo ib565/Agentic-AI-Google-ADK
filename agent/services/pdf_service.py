@@ -1,10 +1,14 @@
 import io
+import logging
 from time import perf_counter
 from datetime import datetime, timezone
 from weasyprint import HTML
 from weasyprint.text.fonts import FontConfiguration
 
 from ..models import WorksheetOutput
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 def create_html_from_worksheet(worksheet: WorksheetOutput) -> str:
@@ -157,22 +161,29 @@ def create_html_from_worksheet(worksheet: WorksheetOutput) -> str:
 def html2pdf(html_content: str) -> io.BytesIO:
     """Convert HTML content to PDF bytes."""
     start = perf_counter()
-    font_config = FontConfiguration()
-    bytes_io = io.BytesIO()
+    try:
+        font_config = FontConfiguration()
+        bytes_io = io.BytesIO()
 
-    doc = HTML(string=html_content).render(font_config=font_config)
-    doc.metadata.authors = ["Worksheet Generator"]
-    doc.metadata.created = datetime.now(timezone.utc).isoformat()
-    doc.metadata.title = "Worksheet"
+        doc = HTML(string=html_content).render(font_config=font_config)
+        doc.metadata.authors = ["Worksheet Generator"]
+        doc.metadata.created = datetime.now(timezone.utc).isoformat()
+        doc.metadata.title = "Worksheet"
 
-    doc.write_pdf(bytes_io)
-    print(f"PDF generation completed in {perf_counter() - start:.1f}s")
-    return bytes_io
+        doc.write_pdf(bytes_io)
+
+        duration = perf_counter() - start
+        logger.debug(f"PDF generation completed in {duration:.1f}s")
+        return bytes_io
+
+    except Exception as e:
+        logger.error(f"Error in PDF generation: {e}")
+        raise
 
 
 def worksheet_to_pdf_bytes(worksheet: WorksheetOutput) -> bytes:
     """Converts a structured worksheet to PDF bytes using WeasyPrint."""
-    print(
+    logger.info(
         f"Converting worksheet '{worksheet.title}' (Grade {worksheet.grade_level}) to PDF..."
     )
 
@@ -183,10 +194,10 @@ def worksheet_to_pdf_bytes(worksheet: WorksheetOutput) -> bytes:
         # Convert HTML to PDF
         pdf_bytes_io = html2pdf(html)
         pdf_bytes = pdf_bytes_io.getvalue()
-        print(f"PDF conversion successful: {len(pdf_bytes)} bytes")
 
+        logger.info(f"PDF conversion successful: {len(pdf_bytes)} bytes")
         return pdf_bytes
 
     except Exception as e:
-        print(f"Error converting worksheet to PDF: {e}")
+        logger.error(f"Error converting worksheet to PDF: {e}")
         raise

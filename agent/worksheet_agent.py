@@ -1,6 +1,7 @@
 import os
 import asyncio
 import io
+import logging
 from time import perf_counter
 from datetime import datetime, timezone
 from typing import List, Literal
@@ -15,6 +16,9 @@ from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
 
 # Configuration constants
 APP_NAME = "worksheet_tutorial_app"
@@ -194,22 +198,29 @@ def create_html_from_worksheet(worksheet: WorksheetOutput) -> str:
 def html2pdf(html_content: str) -> io.BytesIO:
     """Convert HTML content to PDF bytes."""
     start = perf_counter()
-    font_config = FontConfiguration()
-    bytes_io = io.BytesIO()
+    try:
+        font_config = FontConfiguration()
+        bytes_io = io.BytesIO()
 
-    doc = HTML(string=html_content).render(font_config=font_config)
-    doc.metadata.authors = ["Worksheet Generator"]
-    doc.metadata.created = datetime.now(timezone.utc).isoformat()
-    doc.metadata.title = "Worksheet"
+        doc = HTML(string=html_content).render(font_config=font_config)
+        doc.metadata.authors = ["Worksheet Generator"]
+        doc.metadata.created = datetime.now(timezone.utc).isoformat()
+        doc.metadata.title = "Worksheet"
 
-    doc.write_pdf(bytes_io)
-    print(f"PDF generation completed in {perf_counter() - start:.1f}s")
-    return bytes_io
+        doc.write_pdf(bytes_io)
+
+        duration = perf_counter() - start
+        logger.debug(f"PDF generation completed in {duration:.1f}s")
+        return bytes_io
+
+    except Exception as e:
+        logger.error(f"Error in PDF generation: {e}")
+        raise
 
 
 def worksheet_to_pdf_bytes(worksheet: WorksheetOutput) -> bytes:
     """Converts a structured worksheet to PDF bytes using WeasyPrint."""
-    print(
+    logger.info(
         f"Converting worksheet '{worksheet.title}' (Grade {worksheet.grade_level}) to PDF..."
     )
 
@@ -220,29 +231,43 @@ def worksheet_to_pdf_bytes(worksheet: WorksheetOutput) -> bytes:
         # Convert HTML to PDF
         pdf_bytes_io = html2pdf(html)
         pdf_bytes = pdf_bytes_io.getvalue()
-        print(f"PDF conversion successful: {len(pdf_bytes)} bytes")
 
+        logger.info(f"PDF conversion successful: {len(pdf_bytes)} bytes")
         return pdf_bytes
 
     except Exception as e:
-        print(f"Error converting worksheet to PDF: {e}")
+        logger.error(f"Error converting worksheet to PDF: {e}")
         raise
 
 
 async def setup_session() -> tuple:
     """Set up session and required services."""
-    session_service = InMemorySessionService()
-    session = await session_service.create_session(
-        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
-    )
-    artifact_service = InMemoryArtifactService()
-    return session_service, session, artifact_service
+    try:
+        session_service = InMemorySessionService()
+        session = await session_service.create_session(
+            app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+        )
+        artifact_service = InMemoryArtifactService()
+        logger.debug("Session and services setup completed successfully")
+        return session_service, session, artifact_service
+    except Exception as e:
+        logger.error(f"Failed to setup session and services: {e}")
+        raise
 
 
 def load_image(image_path: str = IMAGE_PATH) -> bytes:
     """Load image file and return as bytes."""
-    with open(image_path, "rb") as f:
-        return f.read()
+    try:
+        with open(image_path, "rb") as f:
+            image_data = f.read()
+        logger.debug(f"Image loaded successfully: {len(image_data)} bytes")
+        return image_data
+    except FileNotFoundError:
+        logger.error(f"Image file not found: {image_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading image: {e}")
+        raise
 
 
 def create_message_content(
@@ -276,53 +301,70 @@ async def run_worksheet_agent(
     """Run the worksheet agent and return the structured worksheet."""
     import json
 
-    print("Running worksheet agent...")
+    logger.info("Running worksheet agent...")
 
-    async for event in runner.run_async(
-        user_id=USER_ID,
-        session_id=SESSION_ID,
-        new_message=message_content,
-    ):
-        if event.is_final_response():
-            if not event.content or not event.content.parts:
-                continue
+    try:
+        async for event in runner.run_async(
+            user_id=USER_ID,
+            session_id=SESSION_ID,
+            new_message=message_content,
+        ):
+            if event.is_final_response():
+                if not event.content or not event.content.parts:
+                    continue
 
-            for part in event.content.parts:
-                # Check if it's a function response (structured output)
-                if hasattr(part, "function_response") and part.function_response:
-                    try:
-                        return WorksheetOutput(**part.function_response)
-                    except Exception as e:
-                        print(f"Error parsing function_response: {e}")
+                for part in event.content.parts:
+                    # Check if it's a function response (structured output)
+                    if hasattr(part, "function_response") and part.function_response:
+                        try:
+                            worksheet = WorksheetOutput(**part.function_response)
+                            logger.info(
+                                f"Successfully created worksheet: '{worksheet.title}'"
+                            )
+                            return worksheet
+                        except Exception as e:
+                            logger.error(f"Error parsing function_response: {e}")
+                            continue
 
-                # Check if it's text content
-                elif hasattr(part, "text") and part.text:
-                    text_content = part.text.strip()
-                    try:
-                        data = json.loads(text_content)
-                        worksheet = WorksheetOutput(**data)
-                        print(f"Successfully created worksheet: '{worksheet.title}'")
-                        return worksheet
-                    except json.JSONDecodeError as e:
-                        print(f"JSON parsing error: {e}")
-                    except Exception as e:
-                        print(f"Error creating WorksheetOutput: {e}")
+                    # Check if it's text content
+                    elif hasattr(part, "text") and part.text:
+                        text_content = part.text.strip()
+                        try:
+                            data = json.loads(text_content)
+                            worksheet = WorksheetOutput(**data)
+                            logger.info(
+                                f"Successfully created worksheet: '{worksheet.title}'"
+                            )
+                            return worksheet
+                        except json.JSONDecodeError as e:
+                            logger.error(f"JSON parsing error: {e}")
+                        except Exception as e:
+                            logger.error(f"Error creating WorksheetOutput: {e}")
 
-    print("Failed to extract worksheet data from agent response")
-    return None
+        raise Exception("Failed to extract worksheet data from agent response")
+
+    except Exception as e:
+        logger.error(f"Error running worksheet agent: {e}")
+        raise
 
 
 def save_pdf_locally(
     pdf_content: bytes, grade: int, output_path: str = OUTPUT_PDF_PATH
 ) -> str:
     """Save PDF content to local file with grade level in filename."""
-    base_name, ext = os.path.splitext(output_path)
-    graded_output_path = f"{base_name}_grade_{grade}{ext}"
+    try:
+        base_name, ext = os.path.splitext(output_path)
+        graded_output_path = f"{base_name}_grade_{grade}{ext}"
 
-    with open(graded_output_path, "wb") as f:
-        f.write(pdf_content)
-    print(f"PDF saved as '{graded_output_path}'")
-    return graded_output_path
+        with open(graded_output_path, "wb") as f:
+            f.write(pdf_content)
+
+        logger.info(f"PDF saved as '{graded_output_path}'")
+        return graded_output_path
+
+    except Exception as e:
+        logger.error(f"Error saving PDF locally: {e}")
+        raise
 
 
 async def save_pdf_artifact(
@@ -332,26 +374,32 @@ async def save_pdf_artifact(
     filename: str = "worksheet.pdf",
 ) -> str:
     """Save PDF as an artifact and return the version."""
-    base_name, ext = os.path.splitext(filename)
-    graded_filename = f"{base_name}_grade_{grade}{ext}"
+    try:
+        base_name, ext = os.path.splitext(filename)
+        graded_filename = f"{base_name}_grade_{grade}{ext}"
 
-    pdf_artifact = types.Part(
-        inline_data=types.Blob(
-            data=pdf_content,
-            mime_type="application/pdf",
-            display_name=graded_filename,
+        pdf_artifact = types.Part(
+            inline_data=types.Blob(
+                data=pdf_content,
+                mime_type="application/pdf",
+                display_name=graded_filename,
+            )
         )
-    )
 
-    artifact_version = await artifact_service.save_artifact(
-        app_name=APP_NAME,
-        user_id=USER_ID,
-        session_id=SESSION_ID,
-        filename=graded_filename,
-        artifact=pdf_artifact,
-    )
+        artifact_version = await artifact_service.save_artifact(
+            app_name=APP_NAME,
+            user_id=USER_ID,
+            session_id=SESSION_ID,
+            filename=graded_filename,
+            artifact=pdf_artifact,
+        )
 
-    return artifact_version
+        logger.debug(f"PDF artifact saved with version: {artifact_version}")
+        return artifact_version
+
+    except Exception as e:
+        logger.error(f"Error saving PDF artifact: {e}")
+        raise
 
 
 async def create_and_save_worksheet(
@@ -362,7 +410,7 @@ async def create_and_save_worksheet(
 
     try:
         # Setup session and services
-        print("Setting up session and services...")
+        logger.info("Setting up session and services...")
         session_service, session, artifact_service = await setup_session()
 
         # Create runner
@@ -374,19 +422,19 @@ async def create_and_save_worksheet(
 
         # Load image once
         if not os.path.exists(image_path):
-            print(f"Error: Image file not found: {image_path}")
+            logger.error(f"Image file not found: {image_path}")
             return artifact_versions
 
         image_bytes = load_image(image_path)
-        print(f"Image loaded successfully: {len(image_bytes)} bytes")
+        logger.info(f"Image loaded successfully: {len(image_bytes)} bytes")
 
     except Exception as e:
-        print(f"Error during setup: {e}")
+        logger.error(f"Error during setup: {e}")
         return artifact_versions
 
     # Process each grade
     for grade in grades:
-        print(f"\nProcessing grade {grade}...")
+        logger.info(f"Processing grade {grade}...")
 
         try:
             # Create grade-specific message content
@@ -398,7 +446,7 @@ async def create_and_save_worksheet(
             worksheet = await run_worksheet_agent(runner, message_content)
 
             if worksheet is None:
-                print(f"Failed to generate worksheet for grade {grade}")
+                logger.warning(f"Failed to generate worksheet for grade {grade}")
                 continue
 
             # Convert to PDF
@@ -411,10 +459,10 @@ async def create_and_save_worksheet(
             )
 
             artifact_versions[grade] = artifact_version
-            print(f"Grade {grade} completed successfully!")
+            logger.info(f"Grade {grade} completed successfully!")
 
         except Exception as e:
-            print(f"Error processing grade {grade}: {e}")
+            logger.error(f"Error processing grade {grade}: {e}")
             continue
 
     return artifact_versions
@@ -424,14 +472,19 @@ async def main():
     """Main entry point."""
     grades = [3, 6, 9]  # Elementary, Middle, High school
 
-    print(f"Creating worksheets for grades: {grades}")
+    logger.info(f"Creating worksheets for grades: {grades}")
     artifact_versions = await create_and_save_worksheet(grades)
 
-    print(f"\nWorksheets created successfully!")
-    print("Summary:")
+    logger.info("Worksheets creation process completed!")
+    logger.info("Summary:")
     for grade, version in artifact_versions.items():
-        print(f"  Grade {grade}: {version}")
+        logger.info(f"  Grade {grade}: {version}")
 
 
 if __name__ == "__main__":
+    # Configure logging only when running as standalone script
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
     asyncio.run(main())

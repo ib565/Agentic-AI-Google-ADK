@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from google.adk.agents import Agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
@@ -9,6 +10,9 @@ from dotenv import load_dotenv
 from ..models import WorksheetOutput
 
 load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Configuration constants
 APP_NAME = "worksheet_tutorial_app"
@@ -54,11 +58,16 @@ worksheet_agent = Agent(
 
 async def setup_session() -> tuple:
     """Set up session and required services."""
-    session_service = InMemorySessionService()
-    session = await session_service.create_session(
-        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
-    )
-    return session_service, session
+    try:
+        session_service = InMemorySessionService()
+        session = await session_service.create_session(
+            app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+        )
+        logger.debug("Session setup completed successfully")
+        return session_service, session
+    except Exception as e:
+        logger.error(f"Failed to setup session: {e}")
+        raise
 
 
 def create_message_content(
@@ -90,39 +99,51 @@ async def run_worksheet_agent(
     runner: Runner, message_content: types.Content
 ) -> WorksheetOutput:
     """Run the worksheet agent and return the structured worksheet."""
-    print("Running worksheet agent...")
+    logger.info("Running worksheet agent...")
 
-    async for event in runner.run_async(
-        user_id=USER_ID,
-        session_id=SESSION_ID,
-        new_message=message_content,
-    ):
-        if event.is_final_response():
-            if not event.content or not event.content.parts:
-                continue
+    try:
+        async for event in runner.run_async(
+            user_id=USER_ID,
+            session_id=SESSION_ID,
+            new_message=message_content,
+        ):
+            if event.is_final_response():
+                if not event.content or not event.content.parts:
+                    continue
 
-            for part in event.content.parts:
-                # Check if it's a function response (structured output)
-                if hasattr(part, "function_response") and part.function_response:
-                    try:
-                        return WorksheetOutput(**part.function_response)
-                    except Exception as e:
-                        print(f"Error parsing function_response: {e}")
+                for part in event.content.parts:
+                    # Check if it's a function response (structured output)
+                    if hasattr(part, "function_response") and part.function_response:
+                        try:
+                            worksheet = WorksheetOutput(**part.function_response)
+                            logger.info(
+                                f"Successfully created worksheet: '{worksheet.title}'"
+                            )
+                            return worksheet
+                        except Exception as e:
+                            logger.error(f"Error parsing function_response: {e}")
+                            continue
 
-                # Check if it's text content
-                elif hasattr(part, "text") and part.text:
-                    text_content = part.text.strip()
-                    try:
-                        data = json.loads(text_content)
-                        worksheet = WorksheetOutput(**data)
-                        print(f"Successfully created worksheet: '{worksheet.title}'")
-                        return worksheet
-                    except json.JSONDecodeError as e:
-                        print(f"JSON parsing error: {e}")
-                    except Exception as e:
-                        print(f"Error creating WorksheetOutput: {e}")
+                    # Check if it's text content
+                    elif hasattr(part, "text") and part.text:
+                        text_content = part.text.strip()
+                        try:
+                            data = json.loads(text_content)
+                            worksheet = WorksheetOutput(**data)
+                            logger.info(
+                                f"Successfully created worksheet: '{worksheet.title}'"
+                            )
+                            return worksheet
+                        except json.JSONDecodeError as e:
+                            logger.error(f"JSON parsing error: {e}")
+                        except Exception as e:
+                            logger.error(f"Error creating WorksheetOutput: {e}")
 
-    raise Exception("Failed to extract worksheet data from agent response")
+        raise Exception("Failed to extract worksheet data from agent response")
+
+    except Exception as e:
+        logger.error(f"Error running worksheet agent: {e}")
+        raise
 
 
 async def generate_worksheet_from_image(
@@ -130,8 +151,10 @@ async def generate_worksheet_from_image(
 ) -> WorksheetOutput:
     """Generate a worksheet from image bytes for a specific grade level."""
     try:
+        logger.info(f"Generating worksheet for grade {grade} from image: {filename}")
+
         # Setup session and services
-        print("Setting up session and services...")
+        logger.debug("Setting up session and services...")
         session_service, session = await setup_session()
 
         # Create runner
@@ -147,8 +170,9 @@ async def generate_worksheet_from_image(
         # Run agent to generate structured worksheet
         worksheet = await run_worksheet_agent(runner, message_content)
 
+        logger.info(f"Successfully generated worksheet for grade {grade}")
         return worksheet
 
     except Exception as e:
-        print(f"Error generating worksheet: {e}")
+        logger.error(f"Error generating worksheet: {e}")
         raise
