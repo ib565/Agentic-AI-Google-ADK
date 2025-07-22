@@ -62,4 +62,3 @@ Visit `http://localhost:8000/docs` for the interactive Swagger UI where you can 
 - `agent/models.py` - Pydantic models for worksheet structure
 - `agent/services/worksheet_service.py` - Core worksheet generation logic
 - `agent/services/pdf_service.py` - PDF generation and formatting
-- `agent/worksheet_agent.py` - Original standalone script (still functional) 
