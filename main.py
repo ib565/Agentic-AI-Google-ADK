@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 
 from ai_engine.services.worksheet_agent import generate_worksheet_from_image
+from ai_engine.services.lesson_planner_agent import generate_lesson_plan
 from ai_engine.services.pdf_service import worksheet_to_pdf_bytes
 
 # Configure logging
@@ -14,8 +15,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Worksheet Generator API",
-    description="Generate educational worksheets from textbook images",
+    title="Educational AI Assistant API",
+    description="Generate educational worksheets and lesson plans",
     version="1.0.0",
 )
 
@@ -23,7 +24,7 @@ app = FastAPI(
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"message": "Worksheet Generator API is running"}
+    return {"message": "Educational AI Assistant API is running"}
 
 
 @app.post("/generate_worksheet_from_image")
@@ -83,6 +84,59 @@ async def generate_worksheet_from_image_endpoint(
         logger.error(f"Error generating worksheet: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to generate worksheet: {str(e)}"
+        )
+
+
+@app.post("/generate_lesson_plan")
+async def generate_lesson_plan_endpoint(
+    teacher_requirements: str = Form(
+        ..., description="Teacher's requirements for the lesson plan"
+    )
+):
+    """
+    Generate a comprehensive lesson plan based on teacher's requirements.
+
+    - **teacher_requirements**: A string describing the topic, grade level, number of lessons,
+      duration, learning objectives, and any other specific requirements. Can be simple
+      (just a topic) or very detailed.
+
+    Examples of input:
+    - "Solar system for 5th grade, 4 lessons"
+    - "Photosynthesis, grade 8, 3 lessons, 45 minutes each, hands-on activities"
+    - "American Revolution"
+    - "Fractions and decimals for grade 4, 5 lessons, include games and group activities"
+
+    Returns: A comprehensive text-based lesson plan
+    """
+    try:
+        logger.info(
+            f"Received request to generate lesson plan: {teacher_requirements[:100]}..."
+        )
+
+        if not teacher_requirements.strip():
+            logger.warning("Empty teacher requirements received")
+            raise HTTPException(
+                status_code=400, detail="Teacher requirements cannot be empty"
+            )
+
+        # Generate lesson plan using the service
+        lesson_plan = await generate_lesson_plan(teacher_requirements)
+
+        logger.info("Successfully generated lesson plan")
+
+        # Return lesson plan as plain text
+        return Response(
+            content=lesson_plan,
+            media_type="text/plain",
+            headers={"Content-Disposition": "attachment; filename=lesson_plan.txt"},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating lesson plan: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate lesson plan: {str(e)}"
         )
 
 
