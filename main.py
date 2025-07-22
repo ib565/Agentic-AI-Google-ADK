@@ -4,8 +4,8 @@ import asyncio
 import logging
 from typing import Optional
 
-from agent.services.worksheet_service import generate_worksheet_from_image
-from agent.services.pdf_service import worksheet_to_pdf_bytes
+from ai_engine.services.worksheet_agent import generate_worksheet_from_image
+from ai_engine.services.pdf_service import worksheet_to_pdf_bytes
 
 # Configure logging
 logging.basicConfig(
