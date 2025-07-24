@@ -1,10 +1,13 @@
 import os
+import json
 import logging
 from google.adk.agents import Agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 from dotenv import load_dotenv
+
+from ..models import LessonPlanOutput
 
 load_dotenv()
 
@@ -26,32 +29,34 @@ lesson_planner_agent = Agent(
     ),
     instruction=(
         "You are a helpful lesson planning assistant for teachers. "
-        "You will be given a description from a teacher that may or may not include topic, grade level, number of lessons, duration, learning objectives, and other specific requirements."
+        "You will be given a description from a teacher that may or may not include topic, grade level, number of lessons, duration, learning objectives, and other specific requirements. "
         "The input may be very detailed or just a simple topic - adapt accordingly. "
-        "Create a comprehensive lesson plan that includes: "
-        "1. LESSON PLAN OVERVIEW with title, goal/objectives, target grade level, total duration, and brief description "
-        "2. INDIVIDUAL LESSONS - each with lesson number, title, content/activities, duration "
-        "Structure your response as follows: "
-        "LESSON PLAN TITLE: [Creative, engaging title] "
-        "GRADE LEVEL: [Target grade] "
-        "TOTAL DURATION: [Overall timeframe] "
-        "LEARNING GOALS: [Clear, measurable objectives] "
-        "OVERVIEW: [Brief description of what students will learn] "
-        ""
-        "LESSON BREAKDOWN: "
-        "Lesson [#]: [Title] "
-        "Duration: [Time needed] "
-        "Content: [Detailed description of activities, concepts to cover, teaching methods] "
-        "Key Learning Points: [What students should understand] "
-        ""
-        "[Repeat for each lesson] "
+        "Create a comprehensive lesson plan with individual lessons. "
         "Make the content age-appropriate, engaging, and educationally sound. "
         "Include diverse teaching methods (discussion, hands-on activities, multimedia, etc.). "
         "Ensure lessons build upon each other logically. "
         "Be specific about activities and learning outcomes. "
         "If number of lessons isn't specified, create 5-8 lessons. "
         "If duration isn't specified, assume 60-minute class periods. "
+        "Respond ONLY with a JSON object of the format: "
+        "{"
+        '  "title": "string", '
+        '  "grade_level": "string", '
+        '  "total_duration": "string", '
+        '  "learning_goals": "string", '
+        '  "overview": "string", '
+        '  "lessons": ['
+        "    {"
+        '      "lesson_number": number, '
+        '      "title": "string", '
+        '      "duration": "string", '
+        '      "content": "string", '
+        '      "key_learning_points": "string"'
+        "    }"
+        "  ]"
+        "}"
     ),
+    output_schema=LessonPlanOutput,
 )
 
 
@@ -90,13 +95,11 @@ def create_message_content(teacher_input: str) -> types.Content:
 
 async def run_lesson_planner_agent(
     runner: Runner, message_content: types.Content
-) -> str:
-    """Run the lesson planner agent and return the lesson plan text."""
+) -> LessonPlanOutput:
+    """Run the lesson planner agent and return the structured lesson plan."""
     logger.info("Running lesson planner agent...")
 
     try:
-        lesson_plan_text = ""
-
         async for event in runner.run_async(
             user_id=USER_ID,
             session_id=SESSION_ID,
@@ -107,23 +110,41 @@ async def run_lesson_planner_agent(
                     continue
 
                 for part in event.content.parts:
+                    # Check if it's a function response (structured output)
+                    if hasattr(part, "function_response") and part.function_response:
+                        try:
+                            lesson_plan = LessonPlanOutput(**part.function_response)
+                            logger.info(
+                                f"Successfully created lesson plan: '{lesson_plan.title}'"
+                            )
+                            return lesson_plan
+                        except Exception as e:
+                            logger.error(f"Error parsing function_response: {e}")
+                            continue
+
                     # Check if it's text content
-                    if hasattr(part, "text") and part.text:
-                        lesson_plan_text = part.text.strip()
-                        logger.info("Successfully generated lesson plan")
-                        return lesson_plan_text
+                    elif hasattr(part, "text") and part.text:
+                        text_content = part.text.strip()
+                        try:
+                            data = json.loads(text_content)
+                            lesson_plan = LessonPlanOutput(**data)
+                            logger.info(
+                                f"Successfully created lesson plan: '{lesson_plan.title}'"
+                            )
+                            return lesson_plan
+                        except json.JSONDecodeError as e:
+                            logger.error(f"JSON parsing error: {e}")
+                        except Exception as e:
+                            logger.error(f"Error creating LessonPlanOutput: {e}")
 
-        if not lesson_plan_text:
-            raise Exception("Failed to extract lesson plan from agent response")
-
-        return lesson_plan_text
+        raise Exception("Failed to extract lesson plan data from agent response")
 
     except Exception as e:
         logger.error(f"Error running lesson planner agent: {e}")
         raise
 
 
-async def generate_lesson_plan(teacher_input: str) -> str:
+async def generate_lesson_plan(teacher_input: str) -> LessonPlanOutput:
     """Generate a lesson plan from teacher's requirements string."""
     try:
         logger.info(
