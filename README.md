@@ -64,7 +64,7 @@ cd "Agentic AI Google"
 2. Create and activate virtual environment
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+venv\Scripts\activate
 ```
 
 3. Install dependencies
@@ -110,71 +110,10 @@ Input: "Fractions and decimals for 4th grade, 5 lessons, 45 minutes each, includ
 ```
 Input: "American Revolution for 7th grade, 4 lessons, focus on causes and major battles, include primary source analysis and role-playing activities"
 ```
-
-### Running Example Scripts
-```bash
-# Test the lesson planner with example inputs
-python example_lesson_planner.py
-```
-
-## Project Structure
-
-```
-Agentic AI Google/
-├── ai_engine/
-│   ├── models.py              # Data models for structured output
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── pdf_service.py     # PDF generation utilities
-│   │   ├── worksheet_agent.py # Worksheet generation agent
-│   │   └── lesson_planner_agent.py # Lesson planning agent
-│   └── textbook.png          # Sample textbook image
-├── main.py                   # FastAPI application
-├── example_lesson_planner.py # Example usage script
-├── requirements.txt          # Python dependencies
-└── README.md                # This file
-```
-
-## Lesson Plan Output Format
-
-The lesson planner agent generates structured text output with the following format:
-
-```
-LESSON PLAN TITLE: [Creative, engaging title]
-GRADE LEVEL: [Target grade]
-TOTAL DURATION: [Overall timeframe]
-LEARNING GOALS: [Clear, measurable objectives]
-OVERVIEW: [Brief description of what students will learn]
-
-LESSON BREAKDOWN:
-Lesson 1: [Title]
-Duration: [Time needed]
-Content: [Detailed description of activities, concepts to cover, teaching methods]
-Key Learning Points: [What students should understand]
-
-Lesson 2: [Title]
-Duration: [Time needed]
-Content: [Detailed description of activities, concepts to cover, teaching methods]
-Key Learning Points: [What students should understand]
-
-[Additional lessons as needed...]
 ```
 
 ## Technologies Used
 
 - **FastAPI**: Web framework for building APIs
 - **Google AI SDK**: For agent development and Gemini model integration
-- **Pydantic**: Data validation and parsing
-- **Python 3.8+**: Core language
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-[Add your license information here]
+- **Python 3.13**: Core language
