@@ -7,7 +7,11 @@ from typing import Optional
 from ai_engine.services.worksheet_agent import generate_worksheet_from_image
 from ai_engine.services.lesson_planner_agent import generate_lesson_plan
 from ai_engine.services.study_material_agent import generate_study_material
-from ai_engine.services.pdf_service import worksheet_to_pdf_bytes
+from ai_engine.services.pdf_service import (
+    worksheet_to_pdf_bytes,
+    lesson_plan_to_pdf_bytes,
+)
+from ai_engine.services.firebase_service import firebase_service
 
 # Configure logging
 logging.basicConfig(
@@ -39,7 +43,7 @@ async def generate_worksheet_from_image_endpoint(
     - **image**: Upload a textbook page image (PNG, JPG, or JPEG)
     - **grade**: Grade level for the worksheet (1-12)
 
-    Returns: PDF file with the generated worksheet
+    Returns: JSON response with the Firebase URL of the generated worksheet PDF
     """
     try:
         logger.info(f"Received request to generate worksheet for grade {grade}")
@@ -70,14 +74,30 @@ async def generate_worksheet_from_image_endpoint(
 
         logger.info(f"Successfully generated worksheet PDF for grade {grade}")
 
-        # Return PDF as response
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=worksheet_grade_{grade}.pdf"
-            },
+        # Upload to Firebase Storage
+        filename = f"worksheet_grade_{grade}.pdf"
+        firebase_url = firebase_service.upload_bytes(
+            content_bytes=pdf_bytes,
+            folder="content/worksheet",
+            filename=filename,
+            content_type="application/pdf",
         )
+
+        if not firebase_url:
+            raise HTTPException(
+                status_code=500, detail="Failed to upload worksheet to Firebase Storage"
+            )
+
+        logger.info(f"Worksheet uploaded to Firebase: {firebase_url}")
+
+        # Return JSON response with the URL
+        return {
+            "success": True,
+            "message": f"Worksheet generated successfully for grade {grade}",
+            "url": firebase_url,
+            "type": "worksheet",
+            "grade": grade,
+        }
 
     except HTTPException:
         raise
@@ -95,7 +115,7 @@ async def generate_lesson_plan_endpoint(
     )
 ):
     """
-    Generate a comprehensive lesson plan based on teacher's requirements.
+    Generate a comprehensive lesson plan PDF based on teacher's requirements.
 
     - **teacher_requirements**: A string describing the topic, grade level, number of lessons,
       duration, learning objectives, and any other specific requirements. Can be simple
@@ -107,7 +127,7 @@ async def generate_lesson_plan_endpoint(
     - "American Revolution"
     - "Fractions and decimals for grade 4, 5 lessons, include games and group activities"
 
-    Returns: A comprehensive text-based lesson plan
+    Returns: JSON response with the Firebase URL of the generated lesson plan PDF
     """
     try:
         logger.info(
@@ -123,14 +143,38 @@ async def generate_lesson_plan_endpoint(
         # Generate lesson plan using the service
         lesson_plan = await generate_lesson_plan(teacher_requirements)
 
-        logger.info("Successfully generated lesson plan")
+        # Convert to PDF
+        pdf_bytes = lesson_plan_to_pdf_bytes(lesson_plan)
 
-        # Return lesson plan as plain text
-        return Response(
-            content=lesson_plan,
-            media_type="text/plain",
-            headers={"Content-Disposition": "attachment; filename=lesson_plan.txt"},
+        logger.info("Successfully generated lesson plan PDF")
+
+        # Upload to Firebase Storage
+        filename = "lesson_plan.pdf"
+        firebase_url = firebase_service.upload_bytes(
+            content_bytes=pdf_bytes,
+            folder="content/lesson_plan",
+            filename=filename,
+            content_type="application/pdf",
         )
+
+        if not firebase_url:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload lesson plan to Firebase Storage",
+            )
+
+        logger.info(f"Lesson plan uploaded to Firebase: {firebase_url}")
+
+        # Return JSON response with the URL
+        return {
+            "success": True,
+            "message": "Lesson plan generated successfully",
+            "url": firebase_url,
+            "type": "lesson_plan",
+            "title": (
+                lesson_plan.title if hasattr(lesson_plan, "title") else "Lesson Plan"
+            ),
+        }
 
     except HTTPException:
         raise
@@ -161,8 +205,7 @@ async def generate_study_material_endpoint(
     - "Climate change and environmental science, intermediate level"
     - "Ancient civilizations for 6th grade social studies"
 
-    Returns: Comprehensive study materials with organized topics, subtopics,
-    key concepts, practical applications, and suggested activities
+    Returns: JSON response with the Firebase URL of the generated study material text file
     """
     try:
         logger.info(
@@ -180,12 +223,38 @@ async def generate_study_material_endpoint(
 
         logger.info("Successfully generated study material")
 
-        # Return study material as plain text
-        return Response(
-            content=study_material,
-            media_type="text/plain",
-            headers={"Content-Disposition": "attachment; filename=study_material.txt"},
+        # Convert string to bytes for upload
+        study_material_bytes = study_material.encode("utf-8")
+
+        # Upload to Firebase Storage
+        filename = "study_material.txt"
+        firebase_url = firebase_service.upload_bytes(
+            content_bytes=study_material_bytes,
+            folder="content/study_material",
+            filename=filename,
+            content_type="text/plain",
         )
+
+        if not firebase_url:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload study material to Firebase Storage",
+            )
+
+        logger.info(f"Study material uploaded to Firebase: {firebase_url}")
+
+        # Return JSON response with the URL
+        return {
+            "success": True,
+            "message": "Study material generated successfully",
+            "url": firebase_url,
+            "type": "study_material",
+            "requirements": (
+                teacher_requirements[:100] + "..."
+                if len(teacher_requirements) > 100
+                else teacher_requirements
+            ),
+        }
 
     except HTTPException:
         raise
