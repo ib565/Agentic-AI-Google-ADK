@@ -71,13 +71,31 @@ async def setup_session() -> tuple:
 
 
 def create_message_content(
-    image_bytes: bytes, grade: int, image_filename: str = "textbook.png"
+    image_bytes: bytes,
+    grade: int,
+    image_filename: str = "textbook.png",
+    subject: str = None,
+    topic: str = None,
+    description: str = None,
 ) -> types.Content:
-    """Create properly formatted message content with image and text."""
+    """Create properly formatted message content with image and structured parameters."""
+
     grade_text = (
         f"Create a structured worksheet based on the content of the page. "
         f"Make the worksheet appropriate for grade {grade} students. "
         f"Adjust the difficulty level, vocabulary, and question complexity to match grade {grade} standards. "
+    )
+
+    if subject:
+        grade_text += f"The worksheet should focus on {subject}. "
+
+    if topic:
+        grade_text += f"Pay special attention to the topic of {topic}. "
+
+    if description:
+        grade_text += f"Additional instructions: {description}. "
+
+    grade_text += (
         f"Focus on creating fill-in-the-blank questions and short answer questions that test comprehension "
         f"of the key concepts from this textbook page."
     )
@@ -147,11 +165,18 @@ async def run_worksheet_agent(
 
 
 async def generate_worksheet_from_image(
-    image_bytes: bytes, grade: int, filename: str = "image.png"
+    image_bytes: bytes,
+    grade: int,
+    filename: str = "image.png",
+    subject: str = None,
+    topic: str = None,
+    description: str = None,
 ) -> WorksheetOutput:
-    """Generate a worksheet from image bytes for a specific grade level."""
+    """Generate a worksheet from image bytes with structured parameters."""
     try:
-        logger.info(f"Generating worksheet for grade {grade} from image: {filename}")
+        logger.info(
+            f"Generating worksheet for grade {grade} from image: {filename}, subject: {subject}, topic: {topic}"
+        )
 
         # Setup session and services
         logger.debug("Setting up session and services...")
@@ -165,7 +190,9 @@ async def generate_worksheet_from_image(
         )
 
         # Create message content
-        message_content = create_message_content(image_bytes, grade, filename)
+        message_content = create_message_content(
+            image_bytes, grade, filename, subject, topic, description
+        )
 
         # Run agent to generate structured worksheet
         worksheet = await run_worksheet_agent(runner, message_content)

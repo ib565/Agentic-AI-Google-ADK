@@ -58,15 +58,27 @@ async def setup_session() -> tuple:
         raise
 
 
-def create_message_content(teacher_input: str) -> types.Content:
-    """Create properly formatted message content with teacher's requirements."""
+def create_message_content(
+    subject: str, grade: int, topic: str = None, description: str = None
+) -> types.Content:
+    """Create properly formatted message content with structured parameters."""
 
     prompt_text = (
-        f"Create comprehensive study materials based on the following teacher requirements: "
-        f"\n\nTeacher Input: {teacher_input}\n\n"
-        f"Please analyze the input and create detailed study materials with topics and subtopics. "
-        f"If any key details are missing (grade level, subject area, scope), "
-        f"make reasonable assumptions based on the topic provided."
+        f"Create comprehensive study materials with the following specifications:\n\n"
+        f"Subject: {subject}\n"
+        f"Grade Level: {grade}\n"
+    )
+
+    if topic:
+        prompt_text += f"Topic: {topic}\n"
+
+    if description:
+        prompt_text += f"Additional Instructions: {description}\n"
+
+    prompt_text += (
+        f"\nPlease create detailed study materials with topics and subtopics appropriate for "
+        f"grade {grade} students studying {subject}. Make the content comprehensive enough to "
+        f"serve as primary study material, with age-appropriate language and examples."
     )
 
     return types.Content(
@@ -112,11 +124,13 @@ async def run_study_material_agent(
         raise
 
 
-async def generate_study_material(teacher_input: str) -> str:
-    """Generate study materials from teacher's requirements string."""
+async def generate_study_material(
+    subject: str, grade: int, topic: str = None, description: str = None
+) -> str:
+    """Generate study materials from structured parameters."""
     try:
         logger.info(
-            f"Generating study material from teacher input: {teacher_input[:100]}..."
+            f"Generating study material: subject={subject}, grade={grade}, topic={topic}"
         )
 
         # Setup session and services
@@ -131,7 +145,7 @@ async def generate_study_material(teacher_input: str) -> str:
         )
 
         # Create message content
-        message_content = create_message_content(teacher_input)
+        message_content = create_message_content(subject, grade, topic, description)
 
         # Run agent to generate study material
         learning_material = await run_study_material_agent(runner, message_content)

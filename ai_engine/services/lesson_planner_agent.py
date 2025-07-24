@@ -74,15 +74,27 @@ async def setup_session() -> tuple:
         raise
 
 
-def create_message_content(teacher_input: str) -> types.Content:
-    """Create properly formatted message content with teacher's requirements."""
+def create_message_content(
+    subject: str, grade: int, topic: str = None, description: str = None
+) -> types.Content:
+    """Create properly formatted message content with structured parameters."""
 
     prompt_text = (
-        f"Create a comprehensive lesson plan based on the following teacher requirements: "
-        f"\n\nTeacher Input: {teacher_input}\n\n"
-        f"Please analyze the input and create an appropriate lesson plan. "
-        f"If any key details are missing (grade level, number of lessons, duration), "
-        f"make reasonable assumptions."
+        f"Create a comprehensive lesson plan with the following specifications:\n\n"
+        f"Subject: {subject}\n"
+        f"Grade Level: {grade}\n"
+    )
+
+    if topic:
+        prompt_text += f"Topic: {topic}\n"
+
+    if description:
+        prompt_text += f"Additional Instructions: {description}\n"
+
+    prompt_text += (
+        f"\nPlease create an appropriate lesson plan for grade {grade} students in {subject}. "
+        f"If any key details are missing (number of lessons, duration), make reasonable assumptions "
+        f"based on the grade level and subject. Make the content age-appropriate and engaging."
     )
 
     return types.Content(
@@ -144,11 +156,13 @@ async def run_lesson_planner_agent(
         raise
 
 
-async def generate_lesson_plan(teacher_input: str) -> LessonPlanOutput:
-    """Generate a lesson plan from teacher's requirements string."""
+async def generate_lesson_plan(
+    subject: str, grade: int, topic: str = None, description: str = None
+) -> LessonPlanOutput:
+    """Generate a lesson plan from structured parameters."""
     try:
         logger.info(
-            f"Generating lesson plan from teacher input: {teacher_input[:100]}..."
+            f"Generating lesson plan: subject={subject}, grade={grade}, topic={topic}"
         )
 
         # Setup session and services
@@ -163,7 +177,7 @@ async def generate_lesson_plan(teacher_input: str) -> LessonPlanOutput:
         )
 
         # Create message content
-        message_content = create_message_content(teacher_input)
+        message_content = create_message_content(subject, grade, topic, description)
 
         # Run agent to generate lesson plan
         lesson_plan = await run_lesson_planner_agent(runner, message_content)

@@ -36,6 +36,11 @@ async def root():
 async def generate_worksheet_from_image_endpoint(
     image: UploadFile = File(..., description="Textbook image file (PNG, JPG, JPEG)"),
     grade: int = Form(..., description="Grade level (e.g., 3, 6, 9)", ge=1, le=12),
+    subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
+    topic: Optional[str] = Form(None, description="Specific topic (optional)"),
+    description: Optional[str] = Form(
+        None, description="Additional instructions or requirements (optional)"
+    ),
 ):
     """
     Generate a worksheet PDF from a textbook image for a specific grade level.
@@ -66,7 +71,12 @@ async def generate_worksheet_from_image_endpoint(
 
         # Generate worksheet using the service
         worksheet = await generate_worksheet_from_image(
-            image_bytes=image_bytes, grade=grade, filename=image.filename or "image.png"
+            image_bytes=image_bytes,
+            grade=grade,
+            filename=image.filename or "image.png",
+            subject=subject,
+            topic=topic,
+            description=description,
         )
 
         # Convert to PDF
@@ -75,7 +85,8 @@ async def generate_worksheet_from_image_endpoint(
         logger.info(f"Successfully generated worksheet PDF for grade {grade}")
 
         # Upload to Firebase Storage
-        filename = f"worksheet_grade_{grade}.pdf"
+        subject_part = f"_{subject.lower().replace(' ', '_')}" if subject else ""
+        filename = f"worksheet{subject_part}_grade_{grade}.pdf"
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/worksheet",
@@ -97,6 +108,8 @@ async def generate_worksheet_from_image_endpoint(
             "url": firebase_url,
             "type": "worksheet",
             "grade": grade,
+            "subject": subject,
+            "topic": topic,
         }
 
     except HTTPException:
@@ -110,38 +123,35 @@ async def generate_worksheet_from_image_endpoint(
 
 @app.post("/generate_lesson_plan")
 async def generate_lesson_plan_endpoint(
-    teacher_requirements: str = Form(
-        ..., description="Teacher's requirements for the lesson plan"
-    )
+    subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
+    grade: int = Form(..., description="Grade level (1-12)", ge=1, le=12),
+    topic: Optional[str] = Form(None, description="Specific topic (optional)"),
+    description: Optional[str] = Form(
+        None, description="Additional instructions or requirements (optional)"
+    ),
 ):
     """
-    Generate a comprehensive lesson plan PDF based on teacher's requirements.
+    Generate a comprehensive lesson plan PDF based on structured input parameters.
 
-    - **teacher_requirements**: A string describing the topic, grade level, number of lessons,
-      duration, learning objectives, and any other specific requirements. Can be simple
-      (just a topic) or very detailed.
+    - **subject**: Subject area (e.g., Math, Science, History, English)
+    - **grade**: Grade level (1-12)
+    - **topic**: Specific topic within the subject (optional)
+    - **description**: Additional instructions, requirements, or specific details (optional)
 
-    Examples of input:
-    - "Solar system for 5th grade, 4 lessons"
-    - "Photosynthesis, grade 8, 3 lessons, 45 minutes each, hands-on activities"
-    - "American Revolution"
-    - "Fractions and decimals for grade 4, 5 lessons, include games and group activities"
+    Examples:
+    - subject="Math", grade=5, topic="Fractions", description="Include hands-on activities"
+    - subject="Science", grade=8, topic="Photosynthesis"
+    - subject="History", grade=10, description="Focus on primary sources"
 
     Returns: JSON response with the Firebase URL of the generated lesson plan PDF
     """
     try:
         logger.info(
-            f"Received request to generate lesson plan: {teacher_requirements[:100]}..."
+            f"Received request to generate lesson plan: subject={subject}, grade={grade}, topic={topic}"
         )
 
-        if not teacher_requirements.strip():
-            logger.warning("Empty teacher requirements received")
-            raise HTTPException(
-                status_code=400, detail="Teacher requirements cannot be empty"
-            )
-
-        # Generate lesson plan using the service
-        lesson_plan = await generate_lesson_plan(teacher_requirements)
+        # Generate lesson plan using the service with structured parameters
+        lesson_plan = await generate_lesson_plan(subject, grade, topic, description)
 
         # Convert to PDF
         pdf_bytes = lesson_plan_to_pdf_bytes(lesson_plan)
@@ -149,7 +159,7 @@ async def generate_lesson_plan_endpoint(
         logger.info("Successfully generated lesson plan PDF")
 
         # Upload to Firebase Storage
-        filename = "lesson_plan.pdf"
+        filename = f"lesson_plan_{subject.lower().replace(' ', '_')}_grade_{grade}.pdf"
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/lesson_plan",
@@ -174,6 +184,9 @@ async def generate_lesson_plan_endpoint(
             "title": (
                 lesson_plan.title if hasattr(lesson_plan, "title") else "Lesson Plan"
             ),
+            "subject": subject,
+            "grade": grade,
+            "topic": topic,
         }
 
     except HTTPException:
@@ -187,39 +200,38 @@ async def generate_lesson_plan_endpoint(
 
 @app.post("/generate_study_material")
 async def generate_study_material_endpoint(
-    teacher_requirements: str = Form(
-        ..., description="Teacher's requirements for the study material"
-    )
+    subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
+    grade: int = Form(..., description="Grade level (1-12)", ge=1, le=12),
+    topic: Optional[str] = Form(None, description="Specific topic (optional)"),
+    description: Optional[str] = Form(
+        None, description="Additional instructions or requirements (optional)"
+    ),
 ):
     """
     Generate comprehensive study materials with detailed topics and subtopics.
 
-    - **teacher_requirements**: A string describing the topic, grade level, subject area,
-      difficulty level, and any other specific requirements. Can be simple
-      (just a topic) or very detailed.
+    - **subject**: Subject area (e.g., Math, Science, History, English)
+    - **grade**: Grade level (1-12)
+    - **topic**: Specific topic within the subject (optional)
+    - **description**: Additional instructions, requirements, or specific details (optional)
 
-    Examples of input:
-    - "Photosynthesis for 8th grade biology"
-    - "World War II, high school level, comprehensive coverage"
-    - "Basic algebra concepts for grade 7"
-    - "Climate change and environmental science, intermediate level"
-    - "Ancient civilizations for 6th grade social studies"
+    Examples:
+    - subject="Biology", grade=8, topic="Photosynthesis"
+    - subject="History", grade=11, topic="World War II", description="Focus on European theater"
+    - subject="Math", grade=7, topic="Basic Algebra"
+    - subject="Science", grade=6, description="Climate change and environmental science"
 
     Returns: JSON response with the Firebase URL of the generated study material text file
     """
     try:
         logger.info(
-            f"Received request to generate study material: {teacher_requirements[:100]}..."
+            f"Received request to generate study material: subject={subject}, grade={grade}, topic={topic}"
         )
 
-        if not teacher_requirements.strip():
-            logger.warning("Empty teacher requirements received")
-            raise HTTPException(
-                status_code=400, detail="Teacher requirements cannot be empty"
-            )
-
-        # Generate study material using the service
-        study_material = await generate_study_material(teacher_requirements)
+        # Generate study material using the service with structured parameters
+        study_material = await generate_study_material(
+            subject, grade, topic, description
+        )
 
         logger.info("Successfully generated study material")
 
@@ -227,7 +239,9 @@ async def generate_study_material_endpoint(
         study_material_bytes = study_material.encode("utf-8")
 
         # Upload to Firebase Storage
-        filename = "study_material.txt"
+        filename = (
+            f"study_material_{subject.lower().replace(' ', '_')}_grade_{grade}.txt"
+        )
         firebase_url = firebase_service.upload_bytes(
             content_bytes=study_material_bytes,
             folder="content/study_material",
@@ -249,11 +263,9 @@ async def generate_study_material_endpoint(
             "message": "Study material generated successfully",
             "url": firebase_url,
             "type": "study_material",
-            "requirements": (
-                teacher_requirements[:100] + "..."
-                if len(teacher_requirements) > 100
-                else teacher_requirements
-            ),
+            "subject": subject,
+            "grade": grade,
+            "topic": topic,
         }
 
     except HTTPException:
