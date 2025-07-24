@@ -10,6 +10,7 @@ from ai_engine.services.study_material_agent import generate_study_material
 from ai_engine.services.pdf_service import (
     worksheet_to_pdf_bytes,
     lesson_plan_to_pdf_bytes,
+    study_material_to_pdf_bytes,
 )
 from ai_engine.services.firebase_service import firebase_service
 
@@ -208,7 +209,7 @@ async def generate_study_material_endpoint(
     ),
 ):
     """
-    Generate comprehensive study materials with detailed topics and subtopics.
+    Generate comprehensive study materials with detailed topics and subtopics as a formatted PDF.
 
     - **subject**: Subject area (e.g., Math, Science, History, English)
     - **grade**: Grade level (1-12)
@@ -221,7 +222,7 @@ async def generate_study_material_endpoint(
     - subject="Math", grade=7, topic="Basic Algebra"
     - subject="Science", grade=6, description="Climate change and environmental science"
 
-    Returns: JSON response with the Firebase URL of the generated study material text file
+    Returns: JSON response with the Firebase URL of the generated study material PDF
     """
     try:
         logger.info(
@@ -235,18 +236,18 @@ async def generate_study_material_endpoint(
 
         logger.info("Successfully generated study material")
 
-        # Convert string to bytes for upload
-        study_material_bytes = study_material.encode("utf-8")
+        # Convert study material to PDF bytes
+        pdf_bytes = study_material_to_pdf_bytes(study_material)
 
         # Upload to Firebase Storage
         filename = (
-            f"study_material_{subject.lower().replace(' ', '_')}_grade_{grade}.txt"
+            f"study_material_{subject.lower().replace(' ', '_')}_grade_{grade}.pdf"
         )
         firebase_url = firebase_service.upload_bytes(
-            content_bytes=study_material_bytes,
+            content_bytes=pdf_bytes,
             folder="content/study_material",
             filename=filename,
-            content_type="text/plain",
+            content_type="application/pdf",
         )
 
         if not firebase_url:

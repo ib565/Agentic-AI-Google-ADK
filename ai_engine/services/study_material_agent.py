@@ -1,10 +1,13 @@
 import os
+import json
 import logging
 from google.adk.agents import Agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 from dotenv import load_dotenv
+
+from ..models import StudyMaterialOutput
 
 load_dotenv()
 
@@ -35,12 +38,29 @@ study_material_agent = Agent(
         "• Use engaging language appropriate for the target audience "
         "• Include practice problems when helpful "
         "• Focus on depth and understanding over breadth "
+        "• Organize content into logical sections and subsections "
         ""
         "Write as if explaining directly to students, using analogies and relatable examples. "
         "Make the content comprehensive enough to serve as primary study material. "
-        "If grade level or other details aren't specified, make reasonable assumptions based on topic complexity."
-        "Do not include any other text than the study material."
+        "If grade level or other details aren't specified, make reasonable assumptions based on topic complexity. "
+        "Respond ONLY with a JSON object of the format: "
+        "{"
+        '  "title": "string", '
+        '  "grade_level": "string", '
+        '  "subject": "string", '
+        '  "overview": "string", '
+        '  "learning_objectives": "string", '
+        '  "sections": ['
+        "    {"
+        '      "section_title": "string", '
+        '      "content": "string"'
+        "    }"
+        "  ], "
+        '  "key_concepts": "string", '
+        '  "practice_problems": "string"'
+        "}"
     ),
+    output_schema=StudyMaterialOutput,
 )
 
 
@@ -78,7 +98,9 @@ def create_message_content(
     prompt_text += (
         f"\nPlease create detailed study materials with topics and subtopics appropriate for "
         f"grade {grade} students studying {subject}. Make the content comprehensive enough to "
-        f"serve as primary study material, with age-appropriate language and examples."
+        f"serve as primary study material, with age-appropriate language and examples. "
+        f"Include clear learning objectives, well-organized sections, key concepts summary, "
+        f"and practice problems where appropriate."
     )
 
     return types.Content(
@@ -91,13 +113,11 @@ def create_message_content(
 
 async def run_study_material_agent(
     runner: Runner, message_content: types.Content
-) -> str:
-    """Run the study material agent and return the study material text."""
+) -> StudyMaterialOutput:
+    """Run the study material agent and return the structured study material."""
     logger.info("Running study material agent...")
 
     try:
-        learning_material_text = ""
-
         async for event in runner.run_async(
             user_id=USER_ID,
             session_id=SESSION_ID,
@@ -108,16 +128,36 @@ async def run_study_material_agent(
                     continue
 
                 for part in event.content.parts:
+                    # Check if it's a function response (structured output)
+                    if hasattr(part, "function_response") and part.function_response:
+                        try:
+                            study_material = StudyMaterialOutput(
+                                **part.function_response
+                            )
+                            logger.info(
+                                f"Successfully created study material: '{study_material.title}'"
+                            )
+                            return study_material
+                        except Exception as e:
+                            logger.error(f"Error parsing function_response: {e}")
+                            continue
+
                     # Check if it's text content
-                    if hasattr(part, "text") and part.text:
-                        learning_material_text = part.text.strip()
-                        logger.info("Successfully generated study material")
-                        return learning_material_text
+                    elif hasattr(part, "text") and part.text:
+                        text_content = part.text.strip()
+                        try:
+                            data = json.loads(text_content)
+                            study_material = StudyMaterialOutput(**data)
+                            logger.info(
+                                f"Successfully created study material: '{study_material.title}'"
+                            )
+                            return study_material
+                        except json.JSONDecodeError as e:
+                            logger.error(f"JSON parsing error: {e}")
+                        except Exception as e:
+                            logger.error(f"Error creating StudyMaterialOutput: {e}")
 
-        if not learning_material_text:
-            raise Exception("Failed to extract study material from agent response")
-
-        return learning_material_text
+        raise Exception("Failed to extract study material data from agent response")
 
     except Exception as e:
         logger.error(f"Error running study material agent: {e}")
@@ -126,7 +166,7 @@ async def run_study_material_agent(
 
 async def generate_study_material(
     subject: str, grade: int, topic: str = None, description: str = None
-) -> str:
+) -> StudyMaterialOutput:
     """Generate study materials from structured parameters."""
     try:
         logger.info(
@@ -148,10 +188,10 @@ async def generate_study_material(
         message_content = create_message_content(subject, grade, topic, description)
 
         # Run agent to generate study material
-        learning_material = await run_study_material_agent(runner, message_content)
+        study_material = await run_study_material_agent(runner, message_content)
 
         logger.info("Successfully generated study material")
-        return learning_material
+        return study_material
 
     except Exception as e:
         logger.error(f"Error generating study material: {e}")

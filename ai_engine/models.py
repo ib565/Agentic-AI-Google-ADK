@@ -35,3 +35,19 @@ class LessonPlanOutput(BaseModel):
     learning_goals: str
     overview: str
     lessons: List[Lesson]
+
+
+class StudySection(BaseModel):
+    section_title: str
+    content: str
+
+
+class StudyMaterialOutput(BaseModel):
+    title: str
+    grade_level: str
+    subject: str
+    overview: str
+    learning_objectives: str
+    sections: List[StudySection]
+    key_concepts: str
+    practice_problems: str
