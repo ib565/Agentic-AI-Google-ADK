@@ -1,0 +1,144 @@
+import os
+import logging
+from google.adk.agents import Agent
+from google.adk.sessions import InMemorySessionService
+from google.adk.runners import Runner
+from google.genai import types
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Configuration constants
+APP_NAME = "learning_material_app"
+USER_ID = "user_1"
+SESSION_ID = "material_session_001"
+
+
+# Agent configuration
+study_material_agent = Agent(
+    name="study_material_agent",
+    model="gemini-2.0-flash",
+    description=(
+        "Agent to help teachers create detailed educational content that provides comprehensive explanations and study material like a textbook."
+    ),
+    instruction=(
+        "You are an educational content creator that writes detailed, comprehensive study materials to help teachers. "
+        "Create educational content that teaches concepts thoroughly with detailed explanations, examples, and practice problems. "
+        ""
+        "Guidelines: "
+        "• Provide clear, thorough explanations of concepts "
+        "• Include concrete examples with step-by-step solutions "
+        "• Add real-world applications to make concepts relevant "
+        "• Use engaging language appropriate for the target audience "
+        "• Include practice problems when helpful "
+        "• Focus on depth and understanding over breadth "
+        ""
+        "Write as if explaining directly to students, using analogies and relatable examples. "
+        "Make the content comprehensive enough to serve as primary study material. "
+        "If grade level or other details aren't specified, make reasonable assumptions based on topic complexity."
+        "Do not include any other text than the study material."
+    ),
+)
+
+
+async def setup_session() -> tuple:
+    """Set up session and required services."""
+    try:
+        session_service = InMemorySessionService()
+        session = await session_service.create_session(
+            app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+        )
+        logger.debug("Session setup completed successfully")
+        return session_service, session
+    except Exception as e:
+        logger.error(f"Failed to setup session: {e}")
+        raise
+
+
+def create_message_content(teacher_input: str) -> types.Content:
+    """Create properly formatted message content with teacher's requirements."""
+
+    prompt_text = (
+        f"Create comprehensive study materials based on the following teacher requirements: "
+        f"\n\nTeacher Input: {teacher_input}\n\n"
+        f"Please analyze the input and create detailed study materials with topics and subtopics. "
+        f"If any key details are missing (grade level, subject area, scope), "
+        f"make reasonable assumptions based on the topic provided."
+    )
+
+    return types.Content(
+        role="user",
+        parts=[
+            types.Part(text=prompt_text),
+        ],
+    )
+
+
+async def run_study_material_agent(
+    runner: Runner, message_content: types.Content
+) -> str:
+    """Run the study material agent and return the study material text."""
+    logger.info("Running study material agent...")
+
+    try:
+        learning_material_text = ""
+
+        async for event in runner.run_async(
+            user_id=USER_ID,
+            session_id=SESSION_ID,
+            new_message=message_content,
+        ):
+            if event.is_final_response():
+                if not event.content or not event.content.parts:
+                    continue
+
+                for part in event.content.parts:
+                    # Check if it's text content
+                    if hasattr(part, "text") and part.text:
+                        learning_material_text = part.text.strip()
+                        logger.info("Successfully generated study material")
+                        return learning_material_text
+
+        if not learning_material_text:
+            raise Exception("Failed to extract study material from agent response")
+
+        return learning_material_text
+
+    except Exception as e:
+        logger.error(f"Error running study material agent: {e}")
+        raise
+
+
+async def generate_study_material(teacher_input: str) -> str:
+    """Generate study materials from teacher's requirements string."""
+    try:
+        logger.info(
+            f"Generating study material from teacher input: {teacher_input[:100]}..."
+        )
+
+        # Setup session and services
+        logger.debug("Setting up session and services...")
+        session_service, session = await setup_session()
+
+        # Create runner
+        runner = Runner(
+            app_name=APP_NAME,
+            agent=study_material_agent,
+            session_service=session_service,
+        )
+
+        # Create message content
+        message_content = create_message_content(teacher_input)
+
+        # Run agent to generate study material
+        learning_material = await run_study_material_agent(runner, message_content)
+
+        logger.info("Successfully generated study material")
+        return learning_material
+
+    except Exception as e:
+        logger.error(f"Error generating study material: {e}")
+        raise

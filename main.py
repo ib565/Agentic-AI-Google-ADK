@@ -6,6 +6,7 @@ from typing import Optional
 
 from ai_engine.services.worksheet_agent import generate_worksheet_from_image
 from ai_engine.services.lesson_planner_agent import generate_lesson_plan
+from ai_engine.services.study_material_agent import generate_study_material
 from ai_engine.services.pdf_service import worksheet_to_pdf_bytes
 
 # Configure logging
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Educational AI Assistant API",
-    description="Generate educational worksheets and lesson plans",
+    description="Generate educational worksheets, lesson plans, and comprehensive study materials",
     version="1.0.0",
 )
 
@@ -137,6 +138,61 @@ async def generate_lesson_plan_endpoint(
         logger.error(f"Error generating lesson plan: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to generate lesson plan: {str(e)}"
+        )
+
+
+@app.post("/generate_study_material")
+async def generate_study_material_endpoint(
+    teacher_requirements: str = Form(
+        ..., description="Teacher's requirements for the study material"
+    )
+):
+    """
+    Generate comprehensive study materials with detailed topics and subtopics.
+
+    - **teacher_requirements**: A string describing the topic, grade level, subject area,
+      difficulty level, and any other specific requirements. Can be simple
+      (just a topic) or very detailed.
+
+    Examples of input:
+    - "Photosynthesis for 8th grade biology"
+    - "World War II, high school level, comprehensive coverage"
+    - "Basic algebra concepts for grade 7"
+    - "Climate change and environmental science, intermediate level"
+    - "Ancient civilizations for 6th grade social studies"
+
+    Returns: Comprehensive study materials with organized topics, subtopics,
+    key concepts, practical applications, and suggested activities
+    """
+    try:
+        logger.info(
+            f"Received request to generate study material: {teacher_requirements[:100]}..."
+        )
+
+        if not teacher_requirements.strip():
+            logger.warning("Empty teacher requirements received")
+            raise HTTPException(
+                status_code=400, detail="Teacher requirements cannot be empty"
+            )
+
+        # Generate study material using the service
+        study_material = await generate_study_material(teacher_requirements)
+
+        logger.info("Successfully generated study material")
+
+        # Return study material as plain text
+        return Response(
+            content=study_material,
+            media_type="text/plain",
+            headers={"Content-Disposition": "attachment; filename=study_material.txt"},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating study material: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate study material: {str(e)}"
         )
 
 
