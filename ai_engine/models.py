@@ -18,3 +18,20 @@ class WorksheetOutput(BaseModel):
     subject: str
     fill_in_blanks: List[FillInTheBlankQuestion]
     short_answers: List[ShortAnswerQuestion]
+
+
+class Lesson(BaseModel):
+    lesson_number: int
+    title: str
+    duration: str
+    content: str
+    key_learning_points: str
+
+
+class LessonPlanOutput(BaseModel):
+    title: str
+    grade_level: str
+    total_duration: str
+    learning_goals: str
+    overview: str
+    lessons: List[Lesson]
