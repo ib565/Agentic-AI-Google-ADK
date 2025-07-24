@@ -5,10 +5,120 @@ from datetime import datetime, timezone
 from weasyprint import HTML
 from weasyprint.text.fonts import FontConfiguration
 
-from ..models import WorksheetOutput
+from ..models import WorksheetOutput, LessonPlanOutput
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def create_html_from_lesson_plan(lesson_plan: LessonPlanOutput) -> str:
+    """Convert structured lesson plan data to HTML."""
+    html_content = f"""<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>{lesson_plan.title}</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 40px;
+                line-height: 1.6;
+                color: #333;
+            }}
+            .header {{
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+            }}
+            h1 {{
+                color: #2c3e50;
+                margin: 0;
+            }}
+            .meta-info {{
+                color: #7f8c8d;
+                margin: 5px 0;
+            }}
+            .overview {{
+                background-color: #f8f9fa;
+                padding: 15px;
+                border-left: 4px solid #3498db;
+                margin: 20px 0;
+            }}
+            .lesson {{
+                margin: 30px 0;
+                padding: 20px;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+            }}
+            .lesson-title {{
+                color: #2c3e50;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #bdc3c7;
+                padding-bottom: 5px;
+            }}
+            .lesson-duration {{
+                color: #27ae60;
+                font-weight: bold;
+                margin-bottom: 15px;
+            }}
+            .lesson-content {{
+                margin: 15px 0;
+            }}
+            .lesson-points {{
+                background-color: #f8f9fa;
+                padding: 10px;
+                border-radius: 3px;
+                margin-top: 15px;
+            }}
+            .section-header {{
+                color: #2c3e50;
+                margin: 20px 0 10px 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>{lesson_plan.title}</h1>
+            <div class="meta-info">Grade Level: {lesson_plan.grade_level}</div>
+            <div class="meta-info">Total Duration: {lesson_plan.total_duration}</div>
+        </div>
+        
+        <div class="section-header">
+            <h2>Learning Goals</h2>
+        </div>
+        <p>{lesson_plan.learning_goals}</p>
+        
+        <div class="overview">
+            <h3>Overview</h3>
+            <p>{lesson_plan.overview}</p>
+        </div>
+        
+        <div class="section-header">
+            <h2>Lesson Breakdown</h2>
+        </div>"""
+
+    # Add individual lessons
+    for lesson in lesson_plan.lessons:
+        html_content += f"""
+        <div class="lesson">
+            <h3 class="lesson-title">Lesson {lesson.lesson_number}: {lesson.title}</h3>
+            <div class="lesson-duration">Duration: {lesson.duration}</div>
+            <div class="lesson-content">
+                <h4>Content & Activities:</h4>
+                <p>{lesson.content}</p>
+            </div>
+            <div class="lesson-points">
+                <h4>Key Learning Points:</h4>
+                <p>{lesson.key_learning_points}</p>
+            </div>
+        </div>"""
+
+    html_content += """
+    </body>
+</html>"""
+
+    return html_content
 
 
 def create_html_from_worksheet(worksheet: WorksheetOutput) -> str:
@@ -178,6 +288,28 @@ def html2pdf(html_content: str) -> io.BytesIO:
 
     except Exception as e:
         logger.error(f"Error in PDF generation: {e}")
+        raise
+
+
+def lesson_plan_to_pdf_bytes(lesson_plan: LessonPlanOutput) -> bytes:
+    """Converts a structured lesson plan to PDF bytes using WeasyPrint."""
+    logger.info(
+        f"Converting lesson plan '{lesson_plan.title}' (Grade {lesson_plan.grade_level}) to PDF..."
+    )
+
+    try:
+        # Convert lesson plan to HTML
+        html = create_html_from_lesson_plan(lesson_plan)
+
+        # Convert HTML to PDF
+        pdf_bytes_io = html2pdf(html)
+        pdf_bytes = pdf_bytes_io.getvalue()
+
+        logger.info(f"PDF conversion successful: {len(pdf_bytes)} bytes")
+        return pdf_bytes
+
+    except Exception as e:
+        logger.error(f"Error converting lesson plan to PDF: {e}")
         raise
 
 
