@@ -1,7 +1,9 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 import asyncio
 import logging
+import base64
 from typing import Optional
 
 from ai_engine.services.worksheet_agent import generate_worksheet_from_image
@@ -27,6 +29,30 @@ app = FastAPI(
 )
 
 
+# Pydantic models for JSON request bodies
+class WorksheetRequest(BaseModel):
+    image_base64: str
+    image_filename: Optional[str] = "image.png"
+    grade: str
+    subject: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
+class LessonPlanRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
+class StudyMaterialRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -34,60 +60,57 @@ async def root():
 
 
 @app.post("/generate_worksheet_from_image")
-async def generate_worksheet_from_image_endpoint(
-    image: UploadFile = File(..., description="Textbook image file (PNG, JPG, JPEG)"),
-    grade: str = Form(..., description="Grade level (1-12)"),
-    subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
-    topic: Optional[str] = Form(None, description="Specific topic (optional)"),
-    description: Optional[str] = Form(
-        None, description="Additional instructions or requirements (optional)"
-    ),
-):
+async def generate_worksheet_from_image_endpoint(request: WorksheetRequest):
     """
     Generate a worksheet PDF from a textbook image for a specific grade level.
 
-    - **image**: Upload a textbook page image (PNG, JPG, or JPEG)
+    - **image_base64**: Base64 encoded image data (PNG, JPG, or JPEG)
+    - **image_filename**: Original filename (optional, defaults to "image.png")
     - **grade**: Grade level for the worksheet (1-12)
+    - **subject**: Subject area (e.g., Math, Science, History)
+    - **topic**: Specific topic (optional)
+    - **description**: Additional instructions or requirements (optional)
 
     Returns: JSON response with the Firebase URL of the generated worksheet PDF
     """
     try:
-        logger.info(f"Received request to generate worksheet for grade {grade}")
+        logger.info(f"Received request to generate worksheet for grade {request.grade}")
 
-        # Validate file type
-        if not image.content_type or not image.content_type.startswith("image/"):
-            logger.warning(f"Invalid file type: {image.content_type}")
-            raise HTTPException(status_code=400, detail="File must be an image")
-
-        # Read image bytes
-        image_bytes = await image.read()
+        # Decode base64 image
+        try:
+            image_bytes = base64.b64decode(request.image_base64)
+        except Exception as e:
+            logger.warning(f"Invalid base64 image data: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid base64 image data")
 
         if len(image_bytes) == 0:
-            logger.warning("Empty image file received")
-            raise HTTPException(status_code=400, detail="Empty image file")
+            logger.warning("Empty image data received")
+            raise HTTPException(status_code=400, detail="Empty image data")
 
         logger.info(
-            f"Processing image: {image.filename}, size: {len(image_bytes)} bytes"
+            f"Processing image: {request.image_filename}, size: {len(image_bytes)} bytes"
         )
 
         # Generate worksheet using the service
         worksheet = await generate_worksheet_from_image(
             image_bytes=image_bytes,
-            grade=grade,
-            filename=image.filename or "image.png",
-            subject=subject,
-            topic=topic,
-            description=description,
+            grade=request.grade,
+            filename=request.image_filename,
+            subject=request.subject,
+            topic=request.topic,
+            description=request.description,
         )
 
         # Convert to PDF
         pdf_bytes = worksheet_to_pdf_bytes(worksheet)
 
-        logger.info(f"Successfully generated worksheet PDF for grade {grade}")
+        logger.info(f"Successfully generated worksheet PDF for grade {request.grade}")
 
         # Upload to Firebase Storage
-        subject_part = f"_{subject.lower().replace(' ', '_')}" if subject else ""
-        filename = f"worksheet{subject_part}_grade_{grade}.pdf"
+        subject_part = (
+            f"_{request.subject.lower().replace(' ', '_')}" if request.subject else ""
+        )
+        filename = f"worksheet{subject_part}_grade_{request.grade}.pdf"
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/worksheet",
@@ -105,12 +128,12 @@ async def generate_worksheet_from_image_endpoint(
         # Return JSON response with the URL
         return {
             "success": True,
-            "message": f"Worksheet generated successfully for grade {grade}",
+            "message": f"Worksheet generated successfully for grade {request.grade}",
             "url": firebase_url,
             "type": "worksheet",
-            "grade": grade,
-            "subject": subject,
-            "topic": topic,
+            "grade": request.grade,
+            "subject": request.subject,
+            "topic": request.topic,
         }
 
     except HTTPException:
@@ -123,14 +146,7 @@ async def generate_worksheet_from_image_endpoint(
 
 
 @app.post("/generate_lesson_plan")
-async def generate_lesson_plan_endpoint(
-    subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
-    grade: str = Form(..., description="Grade level (1-12)"),
-    topic: Optional[str] = Form(None, description="Specific topic (optional)"),
-    description: Optional[str] = Form(
-        None, description="Additional instructions or requirements (optional)"
-    ),
-):
+async def generate_lesson_plan_endpoint(request: LessonPlanRequest):
     """
     Generate a comprehensive lesson plan PDF based on structured input parameters.
 
@@ -148,11 +164,13 @@ async def generate_lesson_plan_endpoint(
     """
     try:
         logger.info(
-            f"Received request to generate lesson plan: subject={subject}, grade={grade}, topic={topic}"
+            f"Received request to generate lesson plan: subject={request.subject}, grade={request.grade}, topic={request.topic}"
         )
 
         # Generate lesson plan using the service with structured parameters
-        lesson_plan = await generate_lesson_plan(subject, grade, topic, description)
+        lesson_plan = await generate_lesson_plan(
+            request.subject, request.grade, request.topic, request.description
+        )
 
         # Convert to PDF
         pdf_bytes = lesson_plan_to_pdf_bytes(lesson_plan)
@@ -160,7 +178,7 @@ async def generate_lesson_plan_endpoint(
         logger.info("Successfully generated lesson plan PDF")
 
         # Upload to Firebase Storage
-        filename = f"lesson_plan_{subject.lower().replace(' ', '_')}_grade_{grade}.pdf"
+        filename = f"lesson_plan_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.pdf"
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/lesson_plan",
@@ -185,9 +203,9 @@ async def generate_lesson_plan_endpoint(
             "title": (
                 lesson_plan.title if hasattr(lesson_plan, "title") else "Lesson Plan"
             ),
-            "subject": subject,
-            "grade": grade,
-            "topic": topic,
+            "subject": request.subject,
+            "grade": request.grade,
+            "topic": request.topic,
         }
 
     except HTTPException:
@@ -200,14 +218,7 @@ async def generate_lesson_plan_endpoint(
 
 
 @app.post("/generate_study_material")
-async def generate_study_material_endpoint(
-    subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
-    grade: str = Form(..., description="Grade level (1-12)"),
-    topic: Optional[str] = Form(None, description="Specific topic (optional)"),
-    description: Optional[str] = Form(
-        None, description="Additional instructions or requirements (optional)"
-    ),
-):
+async def generate_study_material_endpoint(request: StudyMaterialRequest):
     """
     Generate comprehensive study materials with detailed topics and subtopics as a formatted PDF.
 
@@ -226,12 +237,12 @@ async def generate_study_material_endpoint(
     """
     try:
         logger.info(
-            f"Received request to generate study material: subject={subject}, grade={grade}, topic={topic}"
+            f"Received request to generate study material: subject={request.subject}, grade={request.grade}, topic={request.topic}"
         )
 
         # Generate study material using the service with structured parameters
         study_material = await generate_study_material(
-            subject, grade, topic, description
+            request.subject, request.grade, request.topic, request.description
         )
 
         logger.info("Successfully generated study material")
@@ -240,9 +251,7 @@ async def generate_study_material_endpoint(
         pdf_bytes = study_material_to_pdf_bytes(study_material)
 
         # Upload to Firebase Storage
-        filename = (
-            f"study_material_{subject.lower().replace(' ', '_')}_grade_{grade}.pdf"
-        )
+        filename = f"study_material_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.pdf"
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/study_material",
@@ -264,9 +273,9 @@ async def generate_study_material_endpoint(
             "message": "Study material generated successfully",
             "url": firebase_url,
             "type": "study_material",
-            "subject": subject,
-            "grade": grade,
-            "topic": topic,
+            "subject": request.subject,
+            "grade": request.grade,
+            "topic": request.topic,
         }
 
     except HTTPException:
