@@ -23,8 +23,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Educational AI Assistant API",
-    description="Generate educational worksheets, lesson plans, and comprehensive study materials",
+    title="Sahayak API",
+    description="AI generation backend for Sahayak, a platform for empowering teachers in multi-grade classrooms",
     version="1.0.0",
 )
 
