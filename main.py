@@ -36,7 +36,7 @@ async def root():
 @app.post("/generate_worksheet_from_image")
 async def generate_worksheet_from_image_endpoint(
     image: UploadFile = File(..., description="Textbook image file (PNG, JPG, JPEG)"),
-    grade: int = Form(..., description="Grade level (e.g., 3, 6, 9)", ge=1, le=12),
+    grade: str = Form(..., description="Grade level (1-12)"),
     subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
     topic: Optional[str] = Form(None, description="Specific topic (optional)"),
     description: Optional[str] = Form(
@@ -125,7 +125,7 @@ async def generate_worksheet_from_image_endpoint(
 @app.post("/generate_lesson_plan")
 async def generate_lesson_plan_endpoint(
     subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
-    grade: int = Form(..., description="Grade level (1-12)", ge=1, le=12),
+    grade: str = Form(..., description="Grade level (1-12)"),
     topic: Optional[str] = Form(None, description="Specific topic (optional)"),
     description: Optional[str] = Form(
         None, description="Additional instructions or requirements (optional)"
@@ -202,7 +202,7 @@ async def generate_lesson_plan_endpoint(
 @app.post("/generate_study_material")
 async def generate_study_material_endpoint(
     subject: str = Form(..., description="Subject area (e.g., Math, Science, History)"),
-    grade: int = Form(..., description="Grade level (1-12)", ge=1, le=12),
+    grade: str = Form(..., description="Grade level (1-12)"),
     topic: Optional[str] = Form(None, description="Specific topic (optional)"),
     description: Optional[str] = Form(
         None, description="Additional instructions or requirements (optional)"
