@@ -1,13 +1,16 @@
 # Services package
 
-from .worksheet_agent import generate_worksheet_from_image
-from .lesson_planner_agent import generate_lesson_plan
-from .study_material_agent import generate_study_material
+from .pdf_service import (
+    worksheet_to_pdf_bytes,
+    lesson_plan_to_pdf_bytes,
+    study_material_to_pdf_bytes,
+)
 from .firebase_service import firebase_service
 
+
 __all__ = [
-    "generate_worksheet_from_image",
-    "generate_lesson_plan",
-    "generate_study_material",
+    "worksheet_to_pdf_bytes",
+    "lesson_plan_to_pdf_bytes",
+    "study_material_to_pdf_bytes",
     "firebase_service",
 ]
