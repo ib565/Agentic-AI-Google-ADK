@@ -353,7 +353,7 @@ async def generate_quiz_endpoint(request: QuizRequest):
 
         logger.info("Successfully generated quiz")
 
-        # Convert study material to PDF bytes
+        # Convert quiz to PDF bytes
         pdf_bytes = quiz_to_pdf_bytes(quiz)
 
         # Upload to Firebase Storage
