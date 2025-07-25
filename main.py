@@ -31,7 +31,7 @@ app = FastAPI(
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"message": "Educational AI Assistant API is running"}
+    return {"message": "Sahayak API is running"}
 
 
 @app.post("/generate_worksheet_from_image")
