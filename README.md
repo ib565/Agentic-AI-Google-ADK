@@ -7,7 +7,7 @@ An intelligent educational assistant that helps teachers create worksheets and l
 1. Clone the repository
 ```bash
 git clone <repository-url>
-cd "Agentic AI Google"
+cd Agentic-AI-Google-ADK
 ```
 
 2. Create and activate virtual environment
