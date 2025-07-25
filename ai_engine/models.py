@@ -1,7 +1,32 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 
+# API Request Models
+class WorksheetRequest(BaseModel):
+    image_base64: str
+    image_filename: Optional[str] = "image.png"
+    grade: str
+    subject: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
+class LessonPlanRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
+class StudyMaterialRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
+# AI Output Models
 class FillInTheBlankQuestion(BaseModel):
     question_text: str  # Text with blanks marked as _____ or [blank]
     answer: str  # The correct answer for the blank

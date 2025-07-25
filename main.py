@@ -1,10 +1,8 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
 import asyncio
 import logging
 import base64
-from typing import Optional
 
 from ai_engine.agents.worksheet_agent import generate_worksheet_from_image
 from ai_engine.agents.lesson_planner_agent import generate_lesson_plan
@@ -15,6 +13,7 @@ from ai_engine.services.pdf_service import (
     study_material_to_pdf_bytes,
 )
 from ai_engine.services.firebase_service import firebase_service
+from ai_engine.models import WorksheetRequest, LessonPlanRequest, StudyMaterialRequest
 
 # Configure logging
 logging.basicConfig(
@@ -27,30 +26,6 @@ app = FastAPI(
     description="AI generation backend for Sahayak, a platform for empowering teachers in multi-grade classrooms",
     version="1.0.0",
 )
-
-
-# Pydantic models for JSON request bodies
-class WorksheetRequest(BaseModel):
-    image_base64: str
-    image_filename: Optional[str] = "image.png"
-    grade: str
-    subject: str
-    topic: Optional[str] = None
-    description: Optional[str] = None
-
-
-class LessonPlanRequest(BaseModel):
-    subject: str
-    grade: str
-    topic: Optional[str] = None
-    description: Optional[str] = None
-
-
-class StudyMaterialRequest(BaseModel):
-    subject: str
-    grade: str
-    topic: Optional[str] = None
-    description: Optional[str] = None
 
 
 @app.get("/")
