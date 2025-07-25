@@ -346,7 +346,7 @@ async def generate_quiz_endpoint(request: QuizRequest):
             f"Received request to generate quiz: subject={request.subject}, grade={request.grade}, topic={request.topic}"
         )
 
-        # Generate study material using the service with structured parameters
+        # Generate quiz using the service with structured parameters
         quiz = await generate_quiz(
             request.subject, request.grade, request.topic, request.description
         )
