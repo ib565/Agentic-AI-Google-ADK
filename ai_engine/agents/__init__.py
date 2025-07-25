@@ -7,6 +7,7 @@ This module contains specialized AI agents for educational content generation:
 - LessonPlannerAgent: Creates comprehensive lesson plans
 - StudyMaterialAgent: Produces detailed study materials
 - AskSahayakAgent: A multilingual conversational assistant that maintains context across conversations.
+- QuizAgent: Generates quizzes and assessments
 """
 
 __all__ = [
@@ -14,4 +15,6 @@ __all__ = [
     "generate_worksheet_from_image",
     "generate_lesson_plan",
     "generate_study_material",
+    "generate_quiz",
+    "ask_sahayak_question",
 ]
