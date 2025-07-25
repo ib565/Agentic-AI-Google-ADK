@@ -25,6 +25,12 @@ class StudyMaterialRequest(BaseModel):
     topic: Optional[str] = None
     description: Optional[str] = None
 
+class QuizRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
 
 # AI Output Models
 class FillInTheBlankQuestion(BaseModel):
@@ -76,3 +82,16 @@ class StudyMaterialOutput(BaseModel):
     sections: List[StudySection]
     key_concepts: str
     practice_problems: str
+
+class QuizQuestion(BaseModel):
+    question_type: str
+    question_no: int
+    question_text: str
+    options: List[str]
+    answer: List[str]
+    marks: float
+    
+class QuizOutput(BaseModel):
+    number_of_questions: int
+    total_marks: int
+    questions: List[QuizQuestion]
