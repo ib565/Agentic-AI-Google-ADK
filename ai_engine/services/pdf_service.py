@@ -6,8 +6,9 @@ from weasyprint import HTML
 from weasyprint.text.fonts import FontConfiguration
 import markdown
 import re
+import html
 
-from ..models import WorksheetOutput, LessonPlanOutput, StudyMaterialOutput
+from ..models import WorksheetOutput, LessonPlanOutput, StudyMaterialOutput, QuizOutput
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -183,6 +184,39 @@ def create_html_from_study_material(study_material: StudyMaterialOutput) -> str:
 </html>"""
 
     return html_content
+
+def create_html_from_quiz(quiz: QuizOutput) -> str:
+    html_parts = [
+        "<html>",
+        "<head><meta charset='UTF-8'><style>",
+        "body { font-family: Arial, sans-serif; padding: 20px; }",
+        "h1 { text-align: center; }",
+        ".question { margin-bottom: 20px; }",
+        ".question-type { font-style: italic; color: #555; }",
+        ".options { margin-top: 8px; }",
+        ".option { margin-left: 20px; }",
+        ".marks { color: #008000; font-weight: bold; }",
+        "</style></head><body>"
+    ]
+
+    html_parts.append(f"<h1>Quiz</h1>")
+    html_parts.append(f"<p><strong>Total Questions:</strong> {quiz.number_of_questions}</p>")
+    html_parts.append(f"<p><strong>Total Marks:</strong> {quiz.total_marks}</p>")
+
+    for q in quiz.questions:
+        html_parts.append("<div class='question'>")
+        html_parts.append(f"<p><strong>Q{q.question_no}:</strong> {html.escape(q.question_text)}</p>")
+        html_parts.append(f"<p class='question-type'>Type: {html.escape(q.question_type)}</p>")
+        html_parts.append("<div class='options'>")
+        for i, opt in enumerate(q.options):
+            label = chr(65 + i)  # A, B, C, ...
+            html_parts.append(f"<div class='option'>{label}. {html.escape(opt)}</div>")
+        html_parts.append("</div>")
+        html_parts.append(f"<p class='marks'>Marks: {q.marks}</p>")
+        html_parts.append("</div>")
+
+    html_parts.append("</body></html>")
+    return "\n".join(html_parts)    
 
 
 def create_html_from_lesson_plan(lesson_plan: LessonPlanOutput) -> str:
@@ -528,4 +562,27 @@ def study_material_to_pdf_bytes(study_material: StudyMaterialOutput) -> bytes:
 
     except Exception as e:
         logger.error(f"Error converting study material to PDF: {e}")
+        raise
+
+# for quiz
+
+def quiz_to_pdf_bytes(quiz: QuizOutput) -> bytes:
+    """Converts a structured study material to PDF bytes using WeasyPrint."""
+    logger.info(
+        f"Converting quiz to PDF..."
+    )
+
+    try:
+        # Convert study material to HTML
+        html = create_html_from_quiz(quiz)
+
+        # Convert HTML to PDF
+        pdf_bytes_io = html2pdf(html)
+        pdf_bytes = pdf_bytes_io.getvalue()
+
+        logger.info(f"PDF conversion successful: {len(pdf_bytes)} bytes")
+        return pdf_bytes
+
+    except Exception as e:
+        logger.error(f"Error converting quiz to PDF: {e}")
         raise
