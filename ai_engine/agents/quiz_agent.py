@@ -18,7 +18,7 @@ class QuizAgent(BaseAgent[QuizOutput]):
             name="quiz_agent",
             model="gemini-2.0-flash",
             description=(
-                "Agent to help teachers create quiz content that is instrumental in evaluating students on their understading of a subject and topic."
+                "Agent to help teachers create quiz content that is instrumental in evaluating students on their understanding of a subject and topic."
             ),
             instruction=(
                 "You are an educational content creator that creates quizzes to help teachers evaluate students. "
