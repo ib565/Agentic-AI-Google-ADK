@@ -567,7 +567,7 @@ def study_material_to_pdf_bytes(study_material: StudyMaterialOutput) -> bytes:
 # for quiz
 
 def quiz_to_pdf_bytes(quiz: QuizOutput) -> bytes:
-    """Converts a structured study material to PDF bytes using WeasyPrint."""
+    """Converts a structured quiz to PDF bytes using WeasyPrint."""
     logger.info(
         f"Converting quiz to PDF..."
     )
