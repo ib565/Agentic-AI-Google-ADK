@@ -26,6 +26,19 @@ class StudyMaterialRequest(BaseModel):
     description: Optional[str] = None
 
 
+class AskSahayakRequest(BaseModel):
+    question: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = "default_user"
+
+
+class QuizRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+
+
 # AI Output Models
 class FillInTheBlankQuestion(BaseModel):
     question_text: str  # Text with blanks marked as _____ or [blank]
@@ -76,3 +89,23 @@ class StudyMaterialOutput(BaseModel):
     sections: List[StudySection]
     key_concepts: str
     practice_problems: str
+
+
+class AskSahayakOutput(BaseModel):
+    response: str
+    session_id: str
+
+
+class QuizQuestion(BaseModel):
+    question_type: str
+    question_no: int
+    question_text: str
+    options: List[str]
+    answer: List[str]
+    marks: float
+
+
+class QuizOutput(BaseModel):
+    number_of_questions: int
+    total_marks: int
+    questions: List[QuizQuestion]

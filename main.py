@@ -7,13 +7,22 @@ import base64
 from ai_engine.agents.worksheet_agent import generate_worksheet_from_image
 from ai_engine.agents.lesson_planner_agent import generate_lesson_plan
 from ai_engine.agents.study_material_agent import generate_study_material
+from ai_engine.agents.ask_sahayak_agent import ask_sahayak_question
+from ai_engine.agents.quiz_agent import generate_quiz
 from ai_engine.services.pdf_service import (
     worksheet_to_pdf_bytes,
     lesson_plan_to_pdf_bytes,
     study_material_to_pdf_bytes,
+    quiz_to_pdf_bytes,
 )
 from ai_engine.services.firebase_service import firebase_service
-from ai_engine.models import WorksheetRequest, LessonPlanRequest, StudyMaterialRequest
+from ai_engine.models import (
+    WorksheetRequest,
+    LessonPlanRequest,
+    StudyMaterialRequest,
+    AskSahayakRequest,
+    QuizRequest,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -259,6 +268,128 @@ async def generate_study_material_endpoint(request: StudyMaterialRequest):
         logger.error(f"Error generating study material: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to generate study material: {str(e)}"
+        )
+
+
+@app.post("/ask_sahayak")
+async def ask_sahayak_endpoint(request: AskSahayakRequest):
+    """
+    Ask a question to Sahayak - a multilingual conversational assistant with session memory.
+
+    - **question**: The question to ask Sahayak
+    - **session_id**: Optional session ID to continue a conversation (will create new if not provided)
+    - **user_id**: Optional user ID for tracking (defaults to "default_user")
+
+    Sahayak maintains conversation context within a session and responds in the same language as the question.
+    Features:
+    - Multilingual support with automatic language detection
+    - Conversation memory and context awareness
+    - Educational explanations using analogies
+    - Session-based conversation continuity
+
+    Returns: JSON response with Sahayak's answer, session info, and language detection
+    """
+    try:
+        logger.info(
+            f"Received ask_sahayak request from user {request.user_id}, session: {request.session_id}"
+        )
+
+        # Call the ask_sahayak_question function
+        result = await ask_sahayak_question(
+            question=request.question,
+            user_id=request.user_id,
+            session_id=request.session_id,
+        )
+
+        logger.info(
+            f"Successfully processed ask_sahayak request for session: {result.session_id}"
+        )
+
+        # Return JSON response
+        return {
+            "success": True,
+            "response": result.response,
+            "session_id": result.session_id,
+            "user_id": request.user_id,
+            "type": "ask_sahayak",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing ask_sahayak request: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to process question: {str(e)}"
+        )
+
+
+@app.post("/generate_quiz")
+async def generate_quiz_endpoint(request: QuizRequest):
+    """
+    Generate comprehensive quiz with detailed questions and options as a formatted PDF.
+
+    - **subject**: Subject area (e.g., Math, Science, History, English)
+    - **grade**: Grade level (1-12)
+    - **topic**: Specific topic within the subject (optional)
+    - **description**: Additional instructions, requirements, or specific details (optional)
+
+    Examples:
+    - subject="Biology", grade=8, topic="Photosynthesis"
+    - subject="History", grade=11, topic="World War II", description="Focus on European theater"
+    - subject="Math", grade=7, topic="Basic Algebra"
+    - subject="Science", grade=6, description="Climate change and environmental science"
+
+    Returns: JSON response with the Firebase URL of the generated quiz PDF
+    """
+    try:
+        logger.info(
+            f"Received request to generate quiz: subject={request.subject}, grade={request.grade}, topic={request.topic}"
+        )
+
+        # Generate quiz using the service with structured parameters
+        quiz = await generate_quiz(
+            request.subject, request.grade, request.topic, request.description
+        )
+
+        logger.info("Successfully generated quiz")
+
+        # Convert quiz to PDF bytes
+        pdf_bytes = quiz_to_pdf_bytes(quiz)
+
+        # Upload to Firebase Storage
+        filename = f"quiz_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.pdf"
+        firebase_url = firebase_service.upload_bytes(
+            content_bytes=pdf_bytes,
+            folder="content/quiz",
+            filename=filename,
+            content_type="application/pdf",
+        )
+
+        if not firebase_url:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload quiz to Firebase Storage",
+            )
+
+        logger.info(f"Quiz uploaded to Firebase: {firebase_url}")
+
+        # Return JSON response with the URL
+        return {
+            "success": True,
+            "message": "Quiz generated successfully",
+            "url": firebase_url,
+            "type": "quiz",
+            "subject": request.subject,
+            "grade": request.grade,
+            "topic": request.topic,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating quiz: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate quiz: {str(e)}"
         )
 
 
