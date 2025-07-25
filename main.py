@@ -6,9 +6,9 @@ import logging
 import base64
 from typing import Optional
 
-from ai_engine.services.worksheet_agent import generate_worksheet_from_image
-from ai_engine.services.lesson_planner_agent import generate_lesson_plan
-from ai_engine.services.study_material_agent import generate_study_material
+from ai_engine.agents.worksheet_agent import generate_worksheet_from_image
+from ai_engine.agents.lesson_planner_agent import generate_lesson_plan
+from ai_engine.agents.study_material_agent import generate_study_material
 from ai_engine.services.pdf_service import (
     worksheet_to_pdf_bytes,
     lesson_plan_to_pdf_bytes,
