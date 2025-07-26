@@ -429,11 +429,18 @@ async def generate_visual_aid_endpoint(request: VisualAidRequest):
 
         logger.info("Successfully generated visual aid")
 
-        # Return JSON response with the visual aid data
+        # Return JSON response with flattened structure matching other endpoints
         return {
             "success": True,
             "message": "Visual aid generated successfully",
-            "visual_aid": visual_aid,
+            "type": "visual_aid",
+            "subject": request.subject,
+            "grade": request.grade,
+            "topic": request.topic,
+            "title": visual_aid["title"],
+            "url": visual_aid["diagram_url"],
+            "mermaid_syntax": visual_aid["mermaid_syntax"],
+            "diagram_type": visual_aid["diagram_type"],
         }
 
     except HTTPException:
