@@ -39,6 +39,13 @@ class QuizRequest(BaseModel):
     description: Optional[str] = None
 
 
+class VisualAidRequest(BaseModel):
+    subject: str
+    grade: str
+    topic: str
+    description: Optional[str] = None
+
+
 # AI Output Models
 class FillInTheBlankQuestion(BaseModel):
     question_text: str  # Text with blanks marked as _____ or [blank]
@@ -109,3 +116,9 @@ class QuizOutput(BaseModel):
     number_of_questions: int
     total_marks: int
     questions: List[QuizQuestion]
+
+
+class VisualAidOutput(BaseModel):
+    title: str
+    reasoning: str
+    mermaid_syntax: str

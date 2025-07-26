@@ -9,6 +9,7 @@ from ai_engine.agents.lesson_planner_agent import generate_lesson_plan
 from ai_engine.agents.study_material_agent import generate_study_material
 from ai_engine.agents.ask_sahayak_agent import ask_sahayak_question
 from ai_engine.agents.quiz_agent import generate_quiz
+from ai_engine.agents.visual_aid_agent import generate_visual_aid
 from ai_engine.services.pdf_service import (
     worksheet_to_pdf_bytes,
     lesson_plan_to_pdf_bytes,
@@ -22,6 +23,7 @@ from ai_engine.models import (
     StudyMaterialRequest,
     AskSahayakRequest,
     QuizRequest,
+    VisualAidRequest,
 )
 
 # Configure logging
@@ -390,6 +392,56 @@ async def generate_quiz_endpoint(request: QuizRequest):
         logger.error(f"Error generating quiz: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to generate quiz: {str(e)}"
+        )
+
+
+@app.post("/generate_visual_aid")
+async def generate_visual_aid_endpoint(request: VisualAidRequest):
+    """
+    Generate a visual aid diagram from teacher topic using Mermaid.
+    The agent automatically determines the best diagram type based on the topic.
+
+    - **subject**: Subject area (e.g., Science, Math, History, Geography)
+    - **grade**: Grade level (1-12)
+    - **topic**: Specific topic within the subject (required)
+    - **description**: Additional description or requirements (optional)
+
+    Examples:
+    - topic="Water cycle", subject="Science", grade=5, description="Show evaporation and condensation"
+    - topic="Photosynthesis", subject="Biology", grade=8, description="Include chemical equation"
+    - topic="Multiplication", subject="Math", grade=4, description="Step-by-step process"
+    - topic="World War II timeline", subject="History", grade=10
+
+    Returns: JSON response with the visual aid data including Mermaid syntax and diagram URL
+    """
+    try:
+        logger.info(
+            f"Received request to generate visual aid: topic='{request.topic}', subject={request.subject}, grade={request.grade}"
+        )
+
+        # Generate visual aid using the service with structured parameters
+        visual_aid = await generate_visual_aid(
+            subject=request.subject,
+            grade=request.grade,
+            topic=request.topic,
+            description=request.description,
+        )
+
+        logger.info("Successfully generated visual aid")
+
+        # Return JSON response with the visual aid data
+        return {
+            "success": True,
+            "message": "Visual aid generated successfully",
+            "visual_aid": visual_aid,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating visual aid: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate visual aid: {str(e)}"
         )
 
 
