@@ -8,3 +8,5 @@ google-genai
 google-adk
 firebase-admin>=6.0.0
 markdown>=3.4.0 
+google-generativeai
+google-cloud-documentai
