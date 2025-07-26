@@ -1,3 +1,5 @@
+# evaluation_agent
+
 import os
 # from google.cloud import documentai_v1beta3 as documentai
 from google.cloud import documentai_v1 as documentai
@@ -121,7 +123,7 @@ def extract_quiz_answers_from_text(raw_text: str) -> str:
         raise ValueError(f"Failed to parse JSON from model response: {e}\nRaw output:\n{response.text}")
 
 
-def evaluate_quiz(student_json: list, evaluation_json: list) -> dict:
+async def evaluate_quiz(student_json: list, evaluation_json: list) -> dict:
     """
     Evaluates student answers against correct answers and returns:
     - awarded marks per question
