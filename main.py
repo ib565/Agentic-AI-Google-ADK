@@ -371,14 +371,26 @@ async def generate_quiz_endpoint(request: QuizRequest):
 
         # Convert quiz to PDF bytes
         pdf_bytes = quiz_to_pdf_bytes(quiz)
+        # Convert Pydantic object to JSON bytes
+        quiz_json_str = quiz.model_dump_json(indent=2)
+        quiz_bytes = quiz_json_str.encode("utf-8")
 
         # Upload to Firebase Storage
         filename = f"quiz_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.pdf"
+        filename_json = f"quiz_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.json"
+
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/quiz",
             filename=filename,
             content_type="application/pdf",
+        )
+        
+        firebase_json_url = firebase_service.upload_bytes(
+            content_bytes=quiz_bytes,
+            folder="content/quiz",
+            filename=filename_json,
+            content_type="application/json",
         )
 
         if not firebase_url:
@@ -393,7 +405,8 @@ async def generate_quiz_endpoint(request: QuizRequest):
         return {
             "success": True,
             "message": "Quiz generated successfully",
-            "url": firebase_url,
+            "quiz_url": firebase_url,
+            "quiz_json_url": firebase_json_url,
             "type": "quiz",
             "subject": request.subject,
             "grade": request.grade,
@@ -514,21 +527,38 @@ async def evaluate_quiz_endpoint(request: EvalQuizRequest):
         )
         # Extracting text from Student submission
         extract_text = extract_text_from_pdf_with_docai(
-            # file_path=EvalQuizRequest.student_submission_url,
-            file_path=r"C:\Users\Vipin-M\OneDrive\Documents\Agentic-AI-Google-ADK\Geography_Quiz_Student.pdf",
+            file_path=request.student_submission_url,
             project_id=PROJECT_ID,  # Not numeric
             location=LOCATION,  # Check your processor region
             processor_id=PROCESSOR_ID,
         )
         # Creating Student JSON from raw text
         student_json = extract_quiz_answers_from_text(extract_text)
+        print("student_json", student_json)
+        try:
+            response = requests.get(request.evaluation_json_url)
+            print("Status Code:", response.status_code)
+            print("Response Headers:", response.headers)
+            print("Raw Text Response:")
+            print(response.text)  # 👈 See exactly what you're trying to parse
+            response.raise_for_status()
+            
+            # Try to parse the response as JSON
+            evaluation_json_raw = response.json()
+            print(evaluation_json_raw)
+            # Remove 'question_type' from each question
+            evaluation_json = [
+                {key: q[key] for key in q if key != "question_type"}
+                for q in evaluation_json_raw["questions"]
+            ]
 
-        # Fetching Master Quiz JSON
-        response = requests.get(url)
-        # Raise an error if request failed
-        response.raise_for_status()
-        # Convert JSON text to Python dict/list
-        evaluation_json = response.json()
+            print("Cleaned questions JSON:")
+            print(evaluation_json)
+
+        except requests.exceptions.RequestException as e:
+            print("Request error:", str(e))
+        except ValueError as e:
+            print("JSON decode error:", str(e))
 
         # Evaluate quiz results
 
