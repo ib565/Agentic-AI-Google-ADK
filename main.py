@@ -1,15 +1,26 @@
+import os
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import Response
 import asyncio
 import logging
 import base64
+import requests
+from datetime import datetime
 
+
+from dotenv import load_dotenv
 from ai_engine.agents.worksheet_agent import generate_worksheet_from_image
 from ai_engine.agents.lesson_planner_agent import generate_lesson_plan
 from ai_engine.agents.study_material_agent import generate_study_material
 from ai_engine.agents.ask_sahayak_agent import ask_sahayak_question
 from ai_engine.agents.quiz_agent import generate_quiz
 from ai_engine.agents.visual_aid_agent import generate_visual_aid
+from evaluation_agent import (
+    extract_text_from_pdf_with_docai,
+    extract_quiz_answers_from_text,
+    evaluate_quiz,
+)
+from ai_engine.models import EvalQuizRequest
 from ai_engine.services.pdf_service import (
     worksheet_to_pdf_bytes,
     lesson_plan_to_pdf_bytes,
@@ -25,6 +36,11 @@ from ai_engine.models import (
     QuizRequest,
     VisualAidRequest,
 )
+
+load_dotenv()
+PROJECT_ID = os.getenv("PROJECT_ID")
+LOCATION = os.getenv("LOCATION")
+PROCESSOR_ID = os.getenv("PROCESSOR_ID")
 
 # Configure logging
 logging.basicConfig(
@@ -449,6 +465,145 @@ async def generate_visual_aid_endpoint(request: VisualAidRequest):
         logger.error(f"Error generating visual aid: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500, detail=f"Failed to generate visual aid: {str(e)}"
+        )
+
+
+@app.post("/upload_file")
+async def upload_file_endpoint(file: UploadFile = File(...)):
+    """
+    General file upload endpoint for images and PDFs.
+
+    Accepts image files (PNG, JPG, JPEG) or PDF files and uploads them to Firebase Storage.
+
+    - **file**: The file to upload (image or PDF)
+
+    Returns: JSON response with the Firebase URL of the uploaded file
+    """
+    try:
+        logger.info(f"Received file upload request: {file.filename}")
+
+        # Validate file type
+        allowed_types = {
+            "image/png": ".png",
+            "image/jpeg": ".jpg",
+            "image/jpg": ".jpg",
+            "application/pdf": ".pdf",
+        }
+
+        content_type = file.content_type
+        if content_type not in allowed_types:
+            logger.warning(f"Invalid file type: {content_type}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type not supported. Allowed types: {', '.join(allowed_types.keys())}",
+            )
+
+        # Read file content
+        file_content = await file.read()
+
+        if len(file_content) == 0:
+            logger.warning("Empty file received")
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        # Generate timestamped filename to avoid collisions
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Handle filename and ensure proper extension
+        original_filename = file.filename
+        extension = allowed_types[content_type]
+
+        if not original_filename:
+            # Generate filename if none provided
+            filename = f"upload_{timestamp}{extension}"
+        else:
+            # Extract name without extension
+            if "." in original_filename:
+                name_part = original_filename.rsplit(".", 1)[0]
+            else:
+                name_part = original_filename
+
+            # Create timestamped filename with proper extension
+            filename = f"{name_part}_{timestamp}{extension}"
+
+        logger.info(
+            f"Uploading file: {filename}, size: {len(file_content)} bytes, type: {content_type}"
+        )
+
+        # Upload to Firebase Storage
+        firebase_url = firebase_service.upload_bytes(
+            content_bytes=file_content,
+            folder="content/misc",
+            filename=filename,
+            content_type=content_type,
+        )
+
+        if not firebase_url:
+            raise HTTPException(
+                status_code=500, detail="Failed to upload file to Firebase Storage"
+            )
+
+        logger.info(f"File uploaded successfully to Firebase: {firebase_url}")
+
+        return {
+            "success": True,
+            "message": "File uploaded successfully",
+            "url": firebase_url,
+            "filename": filename,
+            "content_type": content_type,
+            "size_bytes": len(file_content),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading file: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
+
+@app.post("/evaluate_quiz")
+async def evaluate_quiz_endpoint(request: EvalQuizRequest):
+    """
+    Evaluation of quiz submitted by students based on Evalution Metrcis in the Quiz Content generated.
+
+    Returns: JSON with detailed results, marks scored and total marks possible
+    """
+    try:
+        logger.info(
+            f"Received request to evaluate student submission against quiz evaluation metrcis"
+        )
+        # Extracting text from Student submission
+        extract_text = extract_text_from_pdf_with_docai(
+            # file_path=EvalQuizRequest.student_submission_url,
+            file_path=r"C:\Users\Vipin-M\OneDrive\Documents\Agentic-AI-Google-ADK\Geography_Quiz_Student.pdf",
+            project_id=PROJECT_ID,  # Not numeric
+            location=LOCATION,  # Check your processor region
+            processor_id=PROCESSOR_ID,
+        )
+        # Creating Student JSON from raw text
+        student_json = extract_quiz_answers_from_text(extract_text)
+
+        # Fetching Master Quiz JSON
+        response = requests.get(url)
+        # Raise an error if request failed
+        response.raise_for_status()
+        # Convert JSON text to Python dict/list
+        evaluation_json = response.json()
+
+        # Evaluate quiz results
+
+        eval_quiz = await evaluate_quiz(student_json, evaluation_json)
+
+        logger.info("Successfully evaluated quiz")
+
+        # Return JSON response with the URL
+        return eval_quiz
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error evaluating quiz: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to evaluate quiz: {str(e)}"
         )
 
 

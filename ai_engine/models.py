@@ -38,6 +38,9 @@ class QuizRequest(BaseModel):
     topic: Optional[str] = None
     description: Optional[str] = None
 
+class EvalQuizRequest(BaseModel):
+    student_submission_url: str
+    evaluation_json_url: str
 
 class VisualAidRequest(BaseModel):
     subject: str
