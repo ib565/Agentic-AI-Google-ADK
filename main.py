@@ -1,14 +1,18 @@
+import os
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import Response
 import asyncio
 import logging
 import base64
 
+from dotenv import load_dotenv
 from ai_engine.agents.worksheet_agent import generate_worksheet_from_image
 from ai_engine.agents.lesson_planner_agent import generate_lesson_plan
 from ai_engine.agents.study_material_agent import generate_study_material
 from ai_engine.agents.ask_sahayak_agent import ask_sahayak_question
 from ai_engine.agents.quiz_agent import generate_quiz
+from evaluation_agent import extract_text_from_pdf_with_docai, extract_quiz_answers_from_text, evaluate_quiz
+from ai_engine.models import EvalQuizRequest
 from ai_engine.services.pdf_service import (
     worksheet_to_pdf_bytes,
     lesson_plan_to_pdf_bytes,
@@ -23,6 +27,11 @@ from ai_engine.models import (
     AskSahayakRequest,
     QuizRequest,
 )
+
+load_dotenv()
+PROJECT_ID=os.getenv("PROJECT_ID")
+LOCATION=os.getenv("LOCATION")
+PROCESSOR_ID=os.getenv("PROCESSOR_ID")
 
 # Configure logging
 logging.basicConfig(
@@ -392,6 +401,52 @@ async def generate_quiz_endpoint(request: QuizRequest):
             status_code=500, detail=f"Failed to generate quiz: {str(e)}"
         )
 
+@app.post("/evaluate_quiz")
+async def evaluate_quiz_endpoint(request: EvalQuizRequest):
+    """
+    Evaluation of quiz submitted by students based on Evalution Metrcis in the Quiz Content generated.
+
+    Returns: JSON with detailed results, marks scored and total marks possible
+    """
+    try:
+        logger.info(
+            f"Received request to evaluate student submission against quiz evaluation metrcis"
+        )
+        # Extracting text from Student submission
+        extract_text = extract_text_from_pdf_with_docai(
+            #file_path=EvalQuizRequest.student_submission_url,
+            file_path = r'C:\Users\Vipin-M\OneDrive\Documents\Agentic-AI-Google-ADK\Geography_Quiz_Student.pdf',
+            project_id=PROJECT_ID,           # Not numeric
+            location=LOCATION,                          # Check your processor region
+            processor_id=PROCESSOR_ID
+        )
+        # Creating Student JSON from raw text
+        student_json = extract_quiz_answers_from_text(extract_text)
+        
+        #Fetching Master Quiz JSON
+        response = requests.get(url)
+        # Raise an error if request failed
+        response.raise_for_status()
+        # Convert JSON text to Python dict/list
+        evaluation_json = response.json()
+        
+        # Evaluate quiz results 
+
+        eval_quiz = await evaluate_quiz(student_json, evaluation_json)
+
+        logger.info("Successfully evaluated quiz")
+
+        
+        # Return JSON response with the URL
+        return eval_quiz
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error evaluating quiz: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to evaluate quiz: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
