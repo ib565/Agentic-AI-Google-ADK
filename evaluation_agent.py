@@ -1,6 +1,7 @@
 # evaluation_agent
 
 import os
+import requests
 # from google.cloud import documentai_v1beta3 as documentai
 from google.cloud import documentai_v1 as documentai
 
@@ -48,8 +49,11 @@ def extract_text_from_pdf_with_docai(file_path, project_id, location, processor_
     resource_name = client.processor_path(project_id, location, processor_id)
 
     # Read the PDF file into memory
-    with open(file_path, "rb") as f:
-        file_content = f.read()
+    response = requests.get(file_path)
+    response.raise_for_status()  # raises exception for HTTP errors
+
+    file_content = response.content  # this is equivalent to reading with "rb"
+
 
     # Create the RawDocument object
     raw_document = documentai.RawDocument(content=file_content, mime_type=mime_type)
