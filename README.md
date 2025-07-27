@@ -1,6 +1,13 @@
 # Sahayak - Empowering Teachers in Multi-Grade Classrooms using AI Agents
-
 An intelligent educational assistant that helps teachers create worksheets and lesson plans using AI agents powered by Google's Gemini model.
+
+## What makes Sahayak Unique:
+- Hyper-local content Generation
+- Image to worksheet Generation
+- Visual Aid Generator
+- Ask Sahayak Agent
+- Evaluation Assistant
+- Lesson Plan Generator
 
 ## Installation
 
