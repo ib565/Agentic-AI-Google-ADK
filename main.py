@@ -132,6 +132,7 @@ async def generate_worksheet_from_image_endpoint(request: WorksheetRequest):
             "success": True,
             "message": f"Worksheet generated successfully for grade {request.grade}",
             "url": firebase_url,
+            "url_json": None,
             "type": "worksheet",
             "grade": request.grade,
             "subject": request.subject,
@@ -201,6 +202,7 @@ async def generate_lesson_plan_endpoint(request: LessonPlanRequest):
             "success": True,
             "message": "Lesson plan generated successfully",
             "url": firebase_url,
+            "url_json": None,
             "type": "lesson_plan",
             "title": (
                 lesson_plan.title if hasattr(lesson_plan, "title") else "Lesson Plan"
@@ -274,6 +276,7 @@ async def generate_study_material_endpoint(request: StudyMaterialRequest):
             "success": True,
             "message": "Study material generated successfully",
             "url": firebase_url,
+            "url_json": None,
             "type": "study_material",
             "subject": request.subject,
             "grade": request.grade,
@@ -373,14 +376,26 @@ async def generate_quiz_endpoint(request: QuizRequest):
 
         # Convert quiz to PDF bytes
         pdf_bytes = quiz_to_pdf_bytes(quiz)
+        # Convert Pydantic object to JSON bytes
+        quiz_json_str = quiz.model_dump_json(indent=2)
+        quiz_bytes = quiz_json_str.encode("utf-8")
 
         # Upload to Firebase Storage
         filename = f"quiz_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.pdf"
+        filename_json = f"quiz_{request.subject.lower().replace(' ', '_')}_grade_{request.grade}.json"
+
         firebase_url = firebase_service.upload_bytes(
             content_bytes=pdf_bytes,
             folder="content/quiz",
             filename=filename,
             content_type="application/pdf",
+        )
+        
+        firebase_json_url = firebase_service.upload_bytes(
+            content_bytes=quiz_bytes,
+            folder="content/quiz",
+            filename=filename_json,
+            content_type="application/json",
         )
 
         if not firebase_url:
@@ -395,7 +410,8 @@ async def generate_quiz_endpoint(request: QuizRequest):
         return {
             "success": True,
             "message": "Quiz generated successfully",
-            "url": firebase_url,
+            "quiz_url": firebase_url,
+            "quiz_json_url": firebase_json_url,
             "type": "quiz",
             "subject": request.subject,
             "grade": request.grade,
@@ -455,6 +471,7 @@ async def generate_visual_aid_endpoint(request: VisualAidRequest):
             "topic": request.topic,
             "title": visual_aid["title"],
             "url": visual_aid["diagram_url"],
+            "url_json": None,
             "mermaid_syntax": visual_aid["mermaid_syntax"],
             "diagram_type": visual_aid["diagram_type"],
         }
